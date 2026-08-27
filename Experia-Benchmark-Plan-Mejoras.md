@@ -13,6 +13,7 @@ Experia es una plataforma de formación docente gamificada (XP, niveles, insigni
 - Retos interactivos propios (drag & drop, mapa de empatía, quiz) en vez de solo video + quiz.
 - Editor de rutas para el instructor con actualización en tiempo real (Supabase Realtime).
 - Calificación con rúbrica estructurada y devolución de entregas.
+- 
 
 ---
 
