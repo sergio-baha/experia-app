@@ -7,7 +7,7 @@ import {
 } from '../store/store.jsx'
 import { useMobile, PlusIc, TrashIc, EditIc, GripIc, LockIc, Btn, Modal } from '../components/ui.jsx'
 import CertificateCard, { DEFAULT_ACHIEVEMENT_TEXT as DEFAULT_CERT_ACHIEVEMENT_TEXT, fichaCertificado } from '../components/CertificateCard.jsx'
-import LiveRundown from '../components/LiveRundown.jsx'
+import { RUNDOWN_BLOCKS, RUNDOWN_TRACKS } from '../lib/liveRundown.js'
 import {
   TYPE_LABELS, TYPE_COLORS, TYPE_BG,
   ChallengeEditorModal, QuizCreatorModal, CustomModuleModal,
@@ -338,6 +338,35 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
     setModuleList(l => [...l, { id: 'new_' + Date.now(), enabled: true, _dbRow: null, ...mod }])
   }
 
+  // Guion estándar de Aula en Vivo (2h10, 7 bloques con tiempos fijos) — se
+  // agrega como módulos tipo lección REALES, en el orden exacto en que deben
+  // aparecer al tutor y a los estudiantes cuando arranca la Clase en Vivo
+  // Guiada (que recorre course_modules en su orden). Los títulos y la frase
+  // de apertura de cada bloque cambian según el tema del curso (liveRundown.js
+  // + characters.jsx); el contenido pedagógico y los tiempos son iguales en
+  // las 4 rutas. Se dedupe por el título del primer bloque para no duplicar
+  // si el tutor ya lo agregó antes.
+  const rundownTrack = courseTheme ? RUNDOWN_TRACKS[courseTheme] : null
+  const rundownAlreadyAdded = !!rundownTrack && moduleList.some(m => m.title === rundownTrack.titles.A)
+  const addLiveRundown = () => {
+    if (!rundownTrack || rundownAlreadyAdded) return
+    const now = Date.now()
+    const newMods = RUNDOWN_BLOCKS.map((b, i) => ({
+      id: `new_lrb_${now}_${b.id}`, enabled: true, _dbRow: null,
+      title: rundownTrack.titles[b.id],
+      desc: `${b.start}–${b.end} · ${b.minutes} min · ${b.kind}`,
+      task: '', xp: 30,
+      content: [
+        { type: 'intro', title: rundownTrack.titles[b.id], text: `${b.start}–${b.end} · ${b.minutes} min` },
+        { type: 'callout', title: 'Frase de apertura', text: `“${rundownTrack.cues[b.id]}”`, icon: '🗣️' },
+        { type: 'text', title: 'Qué es este bloque', text: b.generic },
+        { type: 'text', title: 'Cómo ejecutarlo', text: b.notes.join(' — ') },
+        ...(b.pending ? [{ type: 'callout', title: 'Pendiente', text: `Depende de: ${b.pending}. Mientras no se cargue, el tutor lo resuelve por su cuenta.`, icon: '🚧' }] : []),
+      ],
+    }))
+    setModuleList(l => [...l, ...newMods])
+  }
+
   // Importa la ruta de otro colegio: REEMPLAZA la lista actual con sus módulos
   // (traídos como módulos nuevos, sin pisar el colegio de origen). Queda como
   // cambio sin guardar: el tutor revisa y luego Guarda borrador / Publica.
@@ -565,6 +594,11 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
           <button {...btnRow(() => setShowAddModule(true), 'var(--success)', '#F0FDFA', '#CCFBF1')}>
             <PlusIc s={18} c="var(--success)" /> Crear módulo personalizado
           </button>
+          {rundownTrack && !rundownAlreadyAdded && (
+            <button {...btnRow(addLiveRundown, '#4F46E5', '#EEF2FF', '#E0E7FF')}>
+              <PlusIc s={18} c="#4F46E5" /> Agregar guion de Aula en Vivo (7 bloques · 2h10)
+            </button>
+          )}
           {!moduleList.some(m => m.type === 'final_delivery') && (
             <button {...btnRow(addFinalDelivery, 'var(--success)', '#CCFBF1', '#99F6E4')}>
               <PlusIc s={18} c="var(--success)" /> Agregar Entrega Final
@@ -581,9 +615,6 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
             </button>
           )}
         </div>
-
-        {/* Guion estándar de Aula en Vivo — solo si el curso tiene tema inmersivo */}
-        <LiveRundown theme={courseTheme} />
 
         {/* Tips */}
         <div style={{ padding: 18, borderRadius: 16, background: 'var(--white)', border: '1px solid var(--border)' }}>
