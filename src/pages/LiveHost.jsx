@@ -10,6 +10,7 @@ import {
   subscribeSession, subscribeParticipants, unsubscribe,
 } from '../lib/liveClient.js'
 import { primeAudio, isMuted, toggleMute, sStart, sReveal, sPodium } from '../lib/sound.js'
+import LiveRundown from '../components/LiveRundown.jsx'
 // =============================================
 // EXPERIA — Clase en Vivo Guiada · Profesor (control)
 // El profesor recorre TODA la ruta del curso (lección, encuesta, quiz) y los
@@ -76,6 +77,8 @@ const Launcher = ({ onStarted }) => {
         <option value="">— Elige un curso —</option>
         {myCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
+
+      <LiveRundown theme={myCourses.find(c => c.id === courseId)?.theme} />
 
       {loading && <p style={{ color: 'var(--muted)', fontSize: 14 }}>Cargando ruta…</p>}
       {!loading && courseId && moduleList.length === 0 && (

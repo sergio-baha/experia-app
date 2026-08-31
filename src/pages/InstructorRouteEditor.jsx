@@ -7,6 +7,7 @@ import {
 } from '../store/store.jsx'
 import { useMobile, PlusIc, TrashIc, EditIc, GripIc, LockIc, Btn, Modal } from '../components/ui.jsx'
 import CertificateCard, { DEFAULT_ACHIEVEMENT_TEXT as DEFAULT_CERT_ACHIEVEMENT_TEXT, fichaCertificado } from '../components/CertificateCard.jsx'
+import LiveRundown from '../components/LiveRundown.jsx'
 import {
   TYPE_LABELS, TYPE_COLORS, TYPE_BG,
   ChallengeEditorModal, QuizCreatorModal, CustomModuleModal,
@@ -580,6 +581,9 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
             </button>
           )}
         </div>
+
+        {/* Guion estándar de Aula en Vivo — solo si el curso tiene tema inmersivo */}
+        <LiveRundown theme={courseTheme} />
 
         {/* Tips */}
         <div style={{ padding: 18, borderRadius: 16, background: 'var(--white)', border: '1px solid var(--border)' }}>
