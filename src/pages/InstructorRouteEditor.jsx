@@ -199,13 +199,20 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
   // como plantilla para reemplazar la ruta actual (pedido: usar la versión que
   // otra profesora dejó lista en su colegio). Se apoya en la misma "familia":
   // mismo parent_course_id que este fork. Solo aparecen las que el tutor puede
-  // leer (cualquier fork activo, tras la migración 0041).
+  // leer (cualquier fork activo, tras la migración 0041). Incluye también el
+  // curso BASE (el original, sin colegio) como primera opción — sin esto no
+  // había forma de traer a un fork una actualización hecha en la ruta base
+  // (p. ej. un reseed de contenido): "importar de otro colegio" solo miraba
+  // hermanos, nunca al padre.
   const importableForks = React.useMemo(() => {
     const parentId = courseRow?.parent_course_id
     if (!parentId) return []
-    return courses
+    const parent = courses.find(c => c.id === parentId && c.is_active)
+    const parentOption = parent ? [{ ...parent, institutionName: 'la ruta base (curso original)' }] : []
+    const siblings = courses
       .filter(c => c.id !== courseId && c.parent_course_id === parentId && c.is_active)
       .map(c => ({ ...c, institutionName: institutions.find(i => i.id === c.institution_id)?.name || 'Otro colegio' }))
+    return [...parentOption, ...siblings]
   }, [courses, institutions, courseId, courseRow])
 
   React.useEffect(() => {
@@ -608,7 +615,7 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, onBack }) 
       {/* Modals */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Importar ruta de otro colegio" width={460}>
         <p style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 14, lineHeight: 1.5 }}>
-          Trae la ruta que otro colegio ya dejó lista para este mismo curso. <strong>Reemplaza</strong> los módulos que tienes ahora en el editor — el colegio de origen no se toca, y no afecta a tus estudiantes hasta que Guardes borrador o Publiques.
+          Trae la ruta base (el curso original, sin colegio) o la que otro colegio ya dejó lista para este mismo curso. <strong>Reemplaza</strong> los módulos que tienes ahora en el editor — el origen no se toca, y no afecta a tus estudiantes hasta que Guardes borrador o Publiques.
         </p>
         <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .8, display: 'block', marginBottom: 5 }}>Versión a importar</label>
         <select value={importSourceId} onChange={e => setImportSourceId(e.target.value)}
