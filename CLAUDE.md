@@ -838,7 +838,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 3. **Realtime:** `route_configs` + `live_sessions`/`live_participants` (Modo Aula en Vivo) subscribed; other tables need refresh
 4. **XP migrations:** Still migrating to course_progress table
 5. **Content changes:** Require `git push` (no hot reload)
-6. **Migraciones sin aplicar:** `0058` (bucket `corpus-normativo`), `0059` (regla de conteos en `clone_effectiveness`), `0061` (`live_sessions.closing_notes`, informe de cierre de la clase en vivo, §8) y `0062` (quiz "Simulacro en Vivo" con preguntas de matemáticas en el curso escape-room, para Modo Aula en Vivo) están escritas, pero **no se han corrido en el SQL Editor**
+6. **Migraciones sin aplicar:** `0058` (bucket `corpus-normativo`), `0059` (regla de conteos en `clone_effectiveness`), `0061` (`live_sessions.closing_notes`, informe de cierre de la clase en vivo, §8) y `0062` (2 preguntas de simulacro tipo Saber, intercaladas entre los módulos existentes del curso escape-room — una por módulo, no juntas — para Modo Aula en Vivo) están escritas, pero **no se han corrido en el SQL Editor**
 7. **CLI de Supabase inoperante:** sin `supabase/config.toml`, `db diff --linked` y `db push` fallan. Las migraciones se corren a mano; probarlas antes con `scripts/test-migraciones/`
 
 ---

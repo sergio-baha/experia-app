@@ -141,7 +141,14 @@ export const CharacterFloat = () => {
       : (context === 'moduleComplete' || context === 'routeComplete') ? 'cheer'
       : 'idle')
     enter(() => {})
-    later(dismiss, Math.min(12000, Math.max(5200, 2600 + text.length * 55)))
+    // Las líneas guionadas (getCharacterLine) son cortas y 12s les sobra; una
+    // explicación de quiz en Aula en Vivo (`forced`) puede traer varios
+    // párrafos (500-2200 caracteres) — el typewriter tipea a 17ms/carácter
+    // (ver useTypewriter), así que el tope sube a 45s para que alcance a
+    // terminar de escribirse antes de que el globo se retire solo, incluso
+    // en la explicación más larga.
+    const cap = forced ? 45000 : 12000
+    later(dismiss, Math.min(cap, Math.max(5200, 2600 + text.length * 55)))
   }, [theme, dismiss, enter])
 
   // --- Conversación por turnos ---

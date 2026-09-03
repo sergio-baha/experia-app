@@ -197,7 +197,12 @@ export const useGuidedSession = (courseId) => {
     return () => { alive = false; unsubscribe(ch); clearInterval(poll) }
   }, [participant])
 
-  const leave = React.useCallback(() => setParticipant(null), [])
+  // Limpia también `session` (no solo `participant`): si quedara la sesión
+  // 'ended' puesta, `pendingGuided` en app.jsx (`!!guided.session`) seguiría
+  // viendo un valor truthy y el candado de ruta (`RouteLockOverlay`) le
+  // seguiría tapando el mapa al estudiante — parecería que "no lo devuelve",
+  // aunque GuidedClassView ya lo haya soltado.
+  const leave = React.useCallback(() => { setParticipant(null); setSession(null) }, [])
 
   return { session, isJoined: !!participant, participant, join, leave }
 }

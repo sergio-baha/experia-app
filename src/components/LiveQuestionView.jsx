@@ -158,6 +158,12 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
           // nada, así que esto solo se nota en la Clase en Vivo Guiada.
           reactCharacter(ok ? 'correct' : 'wrong')
         }
+      } else if (session.phase === 'explanation') {
+        // El tutor lee en voz (globo) la explicación de la pregunta — el texto
+        // completo sigue apareciendo también en la tarjeta de abajo, esto es
+        // un refuerzo, no un reemplazo.
+        const text = session.current_reveal?.explanation
+        if (text) reactCharacter('idle', text)
       } else if (session.phase === 'podium') {
         sPodium()
         reactCharacter('liveEnd')   // cierre: tutor + avatar conversan
