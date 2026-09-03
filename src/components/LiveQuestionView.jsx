@@ -240,7 +240,14 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
               return (
                 <div key={i} style={{ padding: '12px 14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
                   border: `2px solid ${isCorrect ? 'var(--success)' : isMine ? 'var(--error)' : 'var(--border)'}`,
-                  background: isCorrect ? '#F0FDFA' : isMine ? '#FEF2F2' : 'var(--white)', color: 'var(--dark)',
+                  // El fondo de acierto/error es un tinte CLARO fijo (mint/rojo), a propósito
+                  // igual en cualquier tema — así que el texto también debe ser un oscuro fijo.
+                  // `var(--dark)` no sirve aquí: los temas de curso la invierten (queda clara,
+                  // pensada para su propio fondo oscuro) y sobre este fondo claro se volvía
+                  // casi invisible. Solo la opción neutra usa var(--dark)/var(--white), que sí
+                  // se invierten juntas de forma consistente en los temas.
+                  background: isCorrect ? '#F0FDFA' : isMine ? '#FEF2F2' : 'var(--white)',
+                  color: (isCorrect || isMine) ? '#1A1A2E' : 'var(--dark)',
                   display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 22, height: 22, borderRadius: 6, background: OPT_COLORS[i % OPT_COLORS.length], color: '#fff',
                     fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{String.fromCharCode(65 + i)}</span>
