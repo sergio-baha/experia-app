@@ -1226,6 +1226,7 @@ table { min-width: 560px; }
   --white: #111a11;
   --border: var(--er-border);
   --text: var(--er-text);
+  --text-sec: var(--er-text);
   --muted: var(--er-muted);
   --orange: var(--er-amber);
   --orange-light: #f5c040;
@@ -1534,6 +1535,7 @@ table { min-width: 560px; }
   --white: #0a1410;
   --border: var(--lab-border);
   --text: var(--lab-text);
+  --text-sec: var(--lab-text);
   --muted: var(--lab-muted);
   --orange: var(--lab-green);
   --orange-light: var(--lab-cyan);
@@ -1805,6 +1807,7 @@ table { min-width: 560px; }
   --white: #080a18;
   --border: var(--tt-border);
   --text: var(--tt-text);
+  --text-sec: var(--tt-text);
   --muted: var(--tt-muted);
   --orange: var(--tt-gold);
   --orange-light: #e0b840;
