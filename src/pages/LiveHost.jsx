@@ -1,5 +1,5 @@
 import React from 'react'
-import { useStore, dbModToAppMod } from '../store/store.jsx'
+import { useStore, dbModToAppMod, resolveCourseForStudent } from '../store/store.jsx'
 import { supabase } from '../lib/supabaseClient.js'
 import { Btn, Confetti, RichText } from '../components/ui.jsx'
 import { LessonBody } from './lesson.jsx'
@@ -163,23 +163,38 @@ const Launcher = ({ onStarted }) => {
   const allowedIds = new Set(userCourses.filter(uc => uc.user_id === user?.id && uc.is_active).map(uc => uc.course_id))
   const myCourses = courses.filter(c => c.is_active && (allowedIds.size === 0 || allowedIds.has(c.id)))
 
-  const [courseId, setCourseId]     = React.useState('')
-  const [moduleList, setModuleList] = React.useState([])
-  const [loading, setLoading]       = React.useState(false)
-  const [busy, setBusy]             = React.useState(false)
-  const [err, setErr]               = React.useState('')
+  const [courseId, setCourseId]         = React.useState('') // lo que el profe elige en el <select>
+  const [effectiveId, setEffectiveId]   = React.useState('') // fork del colegio si existe (ver abajo)
+  const [moduleList, setModuleList]     = React.useState([])
+  const [loading, setLoading]           = React.useState(false)
+  const [busy, setBusy]                 = React.useState(false)
+  const [err, setErr]                   = React.useState('')
 
+  // El editor de ruta SIEMPRE edita el fork del colegio del profesor, nunca el
+  // curso base (ver InstructorRouteEditor.jsx) — así que el contenido real
+  // (incluidas preguntas de simulacro agregadas después, como en Sala de Escape
+  // - Matemáticas) vive ahí, no en el curso base. Si aquí se consultara
+  // `course_modules` con el id base tal cual, la clase en vivo arrancaría con
+  // una ruta desactualizada (menos módulos de los que el profe ve en su editor)
+  // — por eso se resuelve al fork del colegio ANTES de leer la ruta, con la
+  // misma función que ya usan los estudiantes para ver contenido (resolveCourseForStudent).
   React.useEffect(() => {
-    if (!courseId) { setModuleList([]); return }
+    if (!courseId) { setModuleList([]); setEffectiveId(''); return }
+    let alive = true
     setLoading(true); setErr('')
-    supabase.from('course_modules').select('*')
-      .eq('course_id', courseId).order('"order"')
-      .then(({ data, error }) => {
-        if (error) setErr('No se pudo cargar la ruta: ' + error.message)
-        setModuleList(data || [])
-        setLoading(false)
-      })
-  }, [courseId])
+    resolveCourseForStudent(courseId, user?.institution_id).then(id => {
+      if (!alive) return
+      setEffectiveId(id)
+      return supabase.from('course_modules').select('*').eq('course_id', id).order('"order"')
+    }).then(res => {
+      if (!alive || !res) return
+      const { data, error } = res
+      if (error) setErr('No se pudo cargar la ruta: ' + error.message)
+      setModuleList(data || [])
+      setLoading(false)
+    })
+    return () => { alive = false }
+  }, [courseId, user?.institution_id])
 
   const start = async () => {
     if (!courseId || !moduleList.length) return
@@ -187,10 +202,13 @@ const Launcher = ({ onStarted }) => {
     setBusy(true); setErr('')
     try {
       const courseName = myCourses.find(c => c.id === courseId)?.name || null
-      const session = await createLiveSession({ courseId, title: courseName })
+      // effectiveId (el fork), no courseId crudo — es el mismo id que usa el
+      // estudiante para ver su ruta (ver useGuidedSession en app.jsx), así la
+      // sesión, la ruta que lee este panel y lo que el estudiante ve coinciden.
+      const session = await createLiveSession({ courseId: effectiveId, title: courseName })
       const started = await liveGotoModule({ session: session.id, moduleId: moduleList[0].id })
-      try { sessionStorage.setItem(HOST_KEY, JSON.stringify({ session: started.id, courseId })) } catch (_) {}
-      onStarted(started, courseId, moduleList)
+      try { sessionStorage.setItem(HOST_KEY, JSON.stringify({ session: started.id, courseId: effectiveId })) } catch (_) {}
+      onStarted(started, effectiveId, moduleList)
     } catch (e) { setErr(e.message || 'No se pudo crear la sesión'); setBusy(false) }
   }
 
@@ -229,7 +247,7 @@ const Launcher = ({ onStarted }) => {
         </div>
       )}
       {err && <p style={{ fontSize: 13, color: 'var(--error)', marginBottom: 14, fontWeight: 600 }}>{err}</p>}
-      <Btn variant="gradient" size="lg" full disabled={!moduleList.length || busy} onClick={start}>
+      <Btn variant="gradient" size="lg" full disabled={!moduleList.length || busy || loading} onClick={start}>
         {busy ? 'Creando…' : '▶ Iniciar clase en vivo'}
       </Btn>
     </div>

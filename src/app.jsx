@@ -129,20 +129,20 @@ const App = () => {
   const selectedArea   = useStore(s => s.selectedArea);
   const hasCourses     = useStore(s => (s.courses || []).some(c => c.is_active));
   const enrolledCourse = useStore(s => s.enrolledCourseId);
+  // Fork del colegio si existe, igual a enrolledCourse si no (ver selectRequiresLiveToStart
+  // más abajo). La Clase en Vivo Guiada tiene que engancharse a ESTE id, no al de matrícula
+  // en crudo: es el mismo id que usa el panel del profesor (LiveHost) tras su propia
+  // resolución de fork, y el mismo que courseModules/session.module_id referencian — con
+  // enrolledCourse (base) a secas, un curso con fork activo (ej. Sala de Escape -
+  // Matemáticas) nunca encontraba la sesión del profesor al buscarla por course_id, y el
+  // módulo que el profesor proyectaba no aparecía en `courseModules` del estudiante
+  // (GuidedClassView se quedaba sin `currentMod` y mostraba la pantalla de espera genérica).
+  const effectiveCourseId = useStore(s => s.effectiveCourseId);
   const coursesLoaded  = useStore(s => s.coursesLoaded);
   const courseTheme    = useStore(selectActiveCourseTheme);
   const activeTheme    = isLoggedIn ? courseTheme : null;
-  const guided         = useGuidedSession(isLoggedIn && user?.role === 'student' ? enrolledCourse : null);
+  const guided         = useGuidedSession(isLoggedIn && user?.role === 'student' ? (effectiveCourseId || enrolledCourse) : null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
-
-  // Al terminar la Clase en Vivo Guiada, el estudiante ve el podio unos
-  // segundos y luego vuelve solo a su mapa/ruta normal.
-  React.useEffect(() => {
-    if (guided.isJoined && guided.session?.status === 'ended') {
-      const t = setTimeout(guided.leave, 5000);
-      return () => clearTimeout(t);
-    }
-  }, [guided.isJoined, guided.session?.status, guided.leave]);
 
   // Candado de "requires_live_to_start" (0063, solo Sala de Escape -
   // Matemáticas hoy): mientras el estudiante nunca haya estado en una Clase
@@ -151,6 +151,24 @@ const App = () => {
   const liveGateCourseId    = useStore(s => s.effectiveCourseId || s.enrolledCourseId);
   const requiresLiveToStart = useStore(selectRequiresLiveToStart);
   const [hasLiveHistory, setHasLiveHistory] = React.useState(null); // null = aún sin resolver
+
+  // Al terminar la Clase en Vivo Guiada, el estudiante ve el podio unos
+  // segundos y luego vuelve solo a su mapa/ruta normal. Ese "terminar" YA
+  // cumple el candado de más abajo para siempre — se marca aquí mismo, en el
+  // momento en que termina, en vez de esperar a que el efecto de la RPC se
+  // reevalúe (sus dependencias son curso/rol, nunca cambian a media clase, así
+  // que sin esto `hasLiveHistory` se quedaba en su valor `false` de antes de
+  // unirse y el candado volvía a aparecer apenas `guided.leave()` soltaba la
+  // sesión — el estudiante veía "bloqueado" justo después de completar la
+  // clase que se suponía debía desbloquearlo).
+  React.useEffect(() => {
+    if (guided.isJoined && guided.session?.status === 'ended') {
+      setHasLiveHistory(true);
+      const t = setTimeout(guided.leave, 5000);
+      return () => clearTimeout(t);
+    }
+  }, [guided.isJoined, guided.session?.status, guided.leave]);
+
   React.useEffect(() => {
     if (!(isLoggedIn && user?.role === 'student' && requiresLiveToStart && liveGateCourseId)) {
       setHasLiveHistory(null);
