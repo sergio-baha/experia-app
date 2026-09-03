@@ -5,7 +5,7 @@ import { Btn, Confetti, RichText } from '../components/ui.jsx'
 import { LessonBody } from './lesson.jsx'
 import {
   createLiveSession, liveGotoModule, liveCompleteModuleForParticipants,
-  liveSetPhase, liveGoto, liveEnd,
+  liveSetPhase, liveGoto, liveEnd, saveLiveClosingNotes,
   fetchSession, fetchParticipants, fetchAnswerCounts,
   subscribeSession, subscribeParticipants, unsubscribe,
 } from '../lib/liveClient.js'
@@ -20,6 +20,139 @@ const PROD_BASE = 'https://experia-app.pages.dev'
 const OPT_COLORS = ['#E8732C', '#3B82F6', '#10B981', '#A855F7', '#F59E0B', '#EF4444']
 const HOST_KEY = 'experia:live-host'
 const TYPE_LABEL = { lesson: '📖 Lección', challenge: '🎯 Reto', evaluation: '🎯 Evaluación', final_delivery: '🏁 Entrega final' }
+
+// Impresión del informe de cierre: igual patrón que el acta de cierre y la
+// tabla de efectividad (§12/§13 de CLAUDE.md) — solo el documento sale en
+// la hoja, el resto de la pantalla se oculta con `@media print`.
+const LIVE_REPORT_PRINT_CSS = `
+  @media print {
+    body * { visibility: hidden !important; }
+    #live-report-print, #live-report-print * { visibility: visible !important; }
+    #live-report-print {
+      position: absolute; left: 0; top: 0; width: 100%; padding: 0 24px;
+      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    }
+    .no-print { display: none !important; }
+  }
+`
+
+// ---------- Informe de cierre (tras finalizar la clase) ----------
+// El profesor puede generar, tras finalizar, un informe con el resultado
+// final y agregar comentarios generales de la sesión. Los comentarios se
+// guardan en live_sessions.closing_notes (0061); el resto del informe se
+// arma con datos que ya existen (participantes/ranking) — no hay tabla nueva.
+const ClosingReport = ({ session, parts, onSaved }) => {
+  const [open, setOpen]       = React.useState(false)
+  const [notes, setNotes]     = React.useState(session.closing_notes || '')
+  const [saving, setSaving]   = React.useState(false)
+  const [savedAt, setSavedAt] = React.useState(null)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const s = await saveLiveClosingNotes(session.id, notes)
+      onSaved(s)
+      setSavedAt(new Date())
+    } catch (e) { alert('Error: ' + (e?.message || e)) }
+    finally { setSaving(false) }
+  }
+
+  if (!open) return (
+    <div style={{ textAlign: 'center', marginBottom: 20 }}>
+      <Btn variant="secondary" onClick={() => setOpen(true)}>📄 Generar informe de cierre</Btn>
+    </div>
+  )
+
+  const start = session.created_at ? new Date(session.created_at) : null
+  const end   = session.ended_at ? new Date(session.ended_at) : null
+  const fecha = (end || start)?.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) || '—'
+  const rango = start && end
+    ? `${start.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`
+    : null
+
+  return (
+    <div style={{ padding: '20px 24px', borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)', marginBottom: 20 }}>
+      <style>{LIVE_REPORT_PRINT_CSS}</style>
+
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--dark)', margin: 0 }}>Informe de cierre</h2>
+        <Btn variant="gradient" size="sm" onClick={() => window.print()}>🖨️ Descargar informe</Btn>
+      </div>
+
+      <div id="live-report-print" style={{ background: '#fff', color: '#1a1a2e' }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#666', fontWeight: 700 }}>Experia by CEINFES</div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, margin: '8px 0 4px' }}>INFORME DE CIERRE — CLASE EN VIVO</h1>
+          <div style={{ fontSize: 13, color: '#444' }}>{session.title || 'Sesión sin título'}</div>
+        </div>
+
+        <table style={{ width: '100%', fontSize: 12, marginBottom: 20, borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '4px 0', width: 110, color: '#666' }}>Fecha</td>
+              <td style={{ padding: '4px 0', fontWeight: 600 }}>{fecha}</td>
+              <td style={{ padding: '4px 0', width: 90, color: '#666' }}>Horario</td>
+              <td style={{ padding: '4px 0', fontWeight: 600 }}>{rango || '—'}</td>
+            </tr>
+            <tr>
+              <td style={{ padding: '4px 0', color: '#666' }}>Participantes</td>
+              <td style={{ padding: '4px 0', fontWeight: 600 }}>{parts.length}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#666', marginBottom: 8 }}>
+          Resultado final
+        </div>
+        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', marginBottom: 22 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #1a1a2e' }}>
+              <th style={{ textAlign: 'left', padding: '6px 4px', width: 30 }}>#</th>
+              <th style={{ textAlign: 'left', padding: '6px 4px' }}>Nombre</th>
+              <th style={{ textAlign: 'left', padding: '6px 4px', width: 100 }}>Salón</th>
+              <th style={{ textAlign: 'right', padding: '6px 4px', width: 70 }}>Puntaje</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parts.length === 0 ? (
+              <tr><td colSpan={4} style={{ padding: '12px 4px', color: '#888', fontStyle: 'italic' }}>Sin participantes.</td></tr>
+            ) : parts.map((p, i) => (
+              <tr key={p.id} style={{ borderBottom: '1px solid #e5e5e5' }}>
+                <td style={{ padding: '5px 4px', color: '#888' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+                <td style={{ padding: '5px 4px' }}>{p.nombre} {p.apellido || ''}</td>
+                <td style={{ padding: '5px 4px', color: '#555' }}>{p.salon || '—'}</td>
+                <td style={{ padding: '5px 4px', textAlign: 'right', fontWeight: 700 }}>{p.score}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#666', marginBottom: 6 }}>
+            Comentarios generales de la sesión
+          </div>
+          <p style={{ fontSize: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0, minHeight: 40 }}>
+            {notes || '—'}
+          </p>
+        </div>
+      </div>
+
+      <div className="no-print" style={{ marginTop: 18 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .8, display: 'block', marginBottom: 6 }}>
+          Comentarios generales de la sesión
+        </label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4}
+          placeholder="Desarrollo de la clase, temas a reforzar, incidencias…"
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)',
+            fontFamily: 'var(--font)', fontSize: 13, lineHeight: 1.6, resize: 'vertical', boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+          <Btn variant="primary" size="sm" disabled={saving} onClick={save}>{saving ? 'Guardando…' : 'Guardar comentarios'}</Btn>
+          {savedAt && <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>Guardado ✓</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ---------- Lanzador: elegir curso ----------
 const Launcher = ({ onStarted }) => {
@@ -384,6 +517,9 @@ const Control = ({ session: initial, moduleList, onExit }) => {
             </div>
           </div>
         )}
+
+        {/* Informe de cierre: resultados + comentarios generales de la sesión */}
+        {showPodium && <ClosingReport session={session} parts={parts} onSaved={setSession} />}
 
         {/* Controles del profesor */}
         {!showPodium && (

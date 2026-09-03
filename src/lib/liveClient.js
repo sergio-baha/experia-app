@@ -34,6 +34,15 @@ export const liveCompleteModuleForParticipants = async ({ session, moduleId }) =
 export const liveSetPhase = (session, phase) => supabase.rpc('live_set_phase', { p_session: session, p_phase: phase })
 export const liveGoto     = (session, index) => supabase.rpc('live_goto',     { p_session: session, p_index: index })
 export const liveEnd      = (session)        => supabase.rpc('live_end',      { p_session: session })
+// Informe de cierre: comentarios generales del profesor sobre la sesión ya
+// finalizada. Escritura directa (no RPC) — la policy `ls_host_all` de 0022
+// ya permite al host actualizar su propia fila de live_sessions.
+export const saveLiveClosingNotes = async (sessionId, notes) => {
+  const { data, error } = await supabase.from('live_sessions')
+    .update({ closing_notes: notes }).eq('id', sessionId).select().single()
+  if (error) throw error
+  return data
+}
 
 // --- Estudiante ---
 export const joinLiveSession = async ({ code, nombre, apellido, correo, salon }) => {

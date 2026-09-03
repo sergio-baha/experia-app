@@ -7,7 +7,7 @@ import { useGuidedSession } from './lib/liveClient.js'
 import { NotifManager } from './components/ui.jsx'
 import CourseAmbient from './components/CourseAmbient.jsx'
 import { OnboardingModal } from './components/Onboarding.jsx'
-import GuidedSessionBanner from './components/GuidedSessionBanner.jsx'
+import GuidedSessionBanner, { RouteLockOverlay } from './components/GuidedSessionBanner.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import Header from './components/Header.jsx'
 
@@ -189,6 +189,13 @@ const App = () => {
   // se saltan los guards de curso/área — si no, un docente clon sin curso
   // resuelto quedaría atrapado en la selección de curso y no podría entrar.
   const isClonePage = CLONE_PAGES.includes(page);
+  // Ruta bloqueada: hay una Clase en Vivo Guiada activa para el curso del
+  // estudiante y todavía no se unió (si ya se unió, el `return` de más abajo
+  // ya lo mandó a GuidedClassView, así que llegar aquí implica !isJoined).
+  // Las páginas del piloto clon quedan exceptuadas — viven al lado de la
+  // ruta de formación, no dentro de ella (mismo criterio que los guards de
+  // curso/área de más arriba).
+  const pendingGuided = role === 'student' && !!guided.session && !isClonePage;
   // Esperar a que courses + userCourses estén cargados antes de decidir la ruta
   // del estudiante. Sin esto, el primer render ocurre con datos a medias y se ve
   // un parpadeo entre el mapa/onboarding y la selección de curso.
@@ -284,10 +291,13 @@ const App = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         {role === 'student' && <GuidedSessionBanner session={guided.session} onJoin={guided.join} />}
         {!isFullPage && <Header onMenuClick={() => setMobileSidebarOpen(o => !o)} />}
-        <main id="main-content" tabIndex="-1" className="page-enter" style={{ flex: 1, overflow: 'hidden', background: 'var(--bg)', outline: 'none' }} key={page + (nodeId || '')}>
-          <React.Suspense fallback={<PageSpinner />}>
-            {renderPage()}
-          </React.Suspense>
+        <main id="main-content" tabIndex="-1" className="page-enter" style={{ flex: 1, overflow: 'hidden', background: 'var(--bg)', outline: 'none', position: 'relative' }} key={page + (nodeId || '')}>
+          <div style={{ height: '100%', ...(pendingGuided ? { filter: 'blur(2px) saturate(.55)', pointerEvents: 'none', userSelect: 'none' } : {}) }}>
+            <React.Suspense fallback={<PageSpinner />}>
+              {renderPage()}
+            </React.Suspense>
+          </div>
+          {pendingGuided && <RouteLockOverlay session={guided.session} onJoin={guided.join} />}
         </main>
       </div>
     </div>
