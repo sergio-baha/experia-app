@@ -122,20 +122,33 @@ export const fetchAnswerCounts = async (sessionId, index, numOptions) => {
 }
 
 // --- Realtime ---
+// Crea el canal SOLO después de tirar cualquier canal viejo con el mismo
+// nombre. Sin esto, si un mount anterior no alcanzó a limpiar su canal a
+// tiempo (por una navegación rápida entre clases en vivo, o un remount),
+// `supabase.channel(mismoNombre)` puede devolver una instancia que el cliente
+// ya marcó como suscrita, y el `.on(...)` de la nueva suscripción revienta
+// con "cannot add postgres_changes callbacks... after subscribe()" — ese es
+// justo el crash que tira al estudiante de vuelta a la ruta anterior.
+const freshChannel = (name) => {
+  supabase.getChannels()
+    .filter(ch => ch.topic === 'realtime:' + name)
+    .forEach(ch => supabase.removeChannel(ch))
+  return supabase.channel(name)
+}
 export const subscribeSession = (id, cb) =>
-  supabase.channel('live-session-' + id)
+  freshChannel('live-session-' + id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions', filter: `id=eq.${id}` },
         payload => cb(payload.new))
     .subscribe()
 export const subscribeParticipants = (sessionId, cb) =>
-  supabase.channel('live-parts-' + sessionId)
+  freshChannel('live-parts-' + sessionId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_participants', filter: `session_id=eq.${sessionId}` },
         () => cb())
     .subscribe()
 // Antes de unirse no hay session id todavía — se escucha por curso. cb() se
 // reinvoca en cualquier cambio; quien la use debe re-consultar fetchActiveSessionForCourse.
 export const subscribeCourseSessions = (courseId, cb) =>
-  supabase.channel('live-course-' + courseId)
+  freshChannel('live-course-' + courseId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions', filter: `course_id=eq.${courseId}` },
         () => cb())
     .subscribe()
