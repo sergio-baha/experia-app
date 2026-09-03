@@ -153,12 +153,17 @@ export const useGuidedSession = (courseId) => {
     return p
   }, [courseId])
 
+  React.useEffect(() => { setSession(null); setParticipant(null) }, [courseId])
+
+  // Antes de unirse: vigila si el curso tiene una clase activa (para el banner
+  // de invitación) y reintenta el auto-join si el estudiante ya estaba dentro
+  // de ESTA sesión antes de recargar. Se apaga apenas hay `participant` — una
+  // vez unido, la sesión puntual la seguimos aparte (ver el efecto de abajo),
+  // así no quedan dos polls corriendo a la vez durante la clase.
   React.useEffect(() => {
-    setSession(null); setParticipant(null)
-    if (!courseId) return
+    if (!courseId || participant) return
     const resync = () => fetchActiveSessionForCourse(courseId).then(s => {
       setSession(s)
-      // Re-unirse automáticamente si ya estaba dentro de ESTA sesión antes de recargar.
       if (s) {
         try {
           const raw = JSON.parse(sessionStorage.getItem(GUIDED_JOINED_KEY) || '{}')
@@ -168,9 +173,29 @@ export const useGuidedSession = (courseId) => {
     })
     resync()
     const ch = subscribeCourseSessions(courseId, resync)
-    const poll = setInterval(resync, 7000)
+    // 20s: esto corre en TODO estudiante logueado en un curso, todo el tiempo
+    // (no solo durante una clase) — es la red de seguridad del realtime, que
+    // ya detecta una clase nueva al instante en el caso normal. 7s aquí era
+    // gasto constante sin beneficio real para el 99% del tiempo sin clase.
+    const poll = setInterval(resync, 20000)
     return () => { unsubscribe(ch); clearInterval(poll) }
-  }, [courseId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [courseId, participant, join])
+
+  // Ya unido: seguir ESTA sesión por id, SIN excluir 'ended' — a diferencia de
+  // fetchActiveSessionForCourse (pensado solo para el banner pre-unión), aquí
+  // sí necesitamos ver el 'ended' para que GuidedClassView pinte el podio y
+  // app.jsx pueda sacar al estudiante de vuelta al mapa (ver su useEffect del
+  // timeout). Sin esto, la sesión desaparece (se vuelve null) apenas termina
+  // y el estudiante se queda con pantalla en blanco para siempre.
+  React.useEffect(() => {
+    if (!participant) return
+    let alive = true
+    const resync = () => fetchSession(participant.session_id).then(s => { if (alive) setSession(s) })
+    resync()
+    const ch = subscribeSession(participant.session_id, setSession)
+    const poll = setInterval(resync, 7000)
+    return () => { alive = false; unsubscribe(ch); clearInterval(poll) }
+  }, [participant])
 
   const leave = React.useCallback(() => setParticipant(null), [])
 

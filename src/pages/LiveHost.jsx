@@ -332,7 +332,9 @@ const Control = ({ session: initial, moduleList, onExit }) => {
   }
 
   // Siguiente pregunta del módulo actual, o siguiente módulo / fin de clase si
-  // era la última pregunta. Único paso "avanzar" para encuestas (sin leaderboard).
+  // era la última pregunta. Se llama desde reveal/explanation de cualquier
+  // quiz o poll — no hay tabla de posiciones intermedia, el ranking vive
+  // solo en el podio final.
   const advanceQuestionOrModule = () => {
     if (idx < total - 1) return run(liveGoto(session.id, idx + 1))
     return isLastModule ? finishSession() : gotoModuleIdx(currentIdx + 1)
@@ -350,29 +352,22 @@ const Control = ({ session: initial, moduleList, onExit }) => {
     }
     if (phase === 'lobby') return <Big disabled={total === 0} onClick={() => run(liveGoto(session.id, 0))}>Comenzar {isPoll ? 'encuesta' : 'quiz'} ▶</Big>
     if (phase === 'question') return <Big onClick={() => run(liveSetPhase(session.id, 'reveal'))}>Mostrar resultados ({answeredCount}/{parts.length})</Big>
-    // Encuestas: sin tabla de posiciones (no hay puntaje que rankear) — un solo botón avanza.
-    if (isPoll && (phase === 'reveal' || phase === 'explanation')) {
+    // Sin tabla de posiciones intermedia (ranking solo al final, en el podio):
+    // de revelado/explicación se avanza directo a la siguiente pregunta o,
+    // si era la última, al siguiente módulo / fin de clase.
+    if (phase === 'reveal' || phase === 'explanation') {
       const label = idx < total - 1 ? 'Siguiente pregunta' : isLastModule ? 'Finalizar clase en vivo' : 'Siguiente módulo'
-      return <Big disabled={busy} onClick={advanceQuestionOrModule}>{label} →</Big>
-    }
-    if (phase === 'reveal') return (
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {hasExplanation && <Big onClick={() => run(liveSetPhase(session.id, 'explanation'))}>Ver explicación 💡</Big>}
-        <Btn variant="primary" size="lg" onClick={() => run(liveSetPhase(session.id, 'leaderboard'))}>Tabla de posiciones 🏆</Btn>
-      </div>
-    )
-    if (phase === 'explanation') return <Btn variant="primary" size="lg" onClick={() => run(liveSetPhase(session.id, 'leaderboard'))}>Tabla de posiciones 🏆</Btn>
-    if (phase === 'leaderboard') {
-      if (idx < total - 1) return <Big onClick={() => run(liveGoto(session.id, idx + 1))}>Siguiente pregunta →</Big>
-      return isLastModule
-        ? <Big disabled={busy} onClick={finishSession}>Finalizar clase en vivo 🏁</Big>
-        : <Big disabled={busy} onClick={() => gotoModuleIdx(currentIdx + 1)}>Siguiente módulo →</Big>
+      return (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {phase === 'reveal' && hasExplanation && <Big onClick={() => run(liveSetPhase(session.id, 'explanation'))}>Ver explicación 💡</Big>}
+          <Btn variant="primary" size="lg" disabled={busy} onClick={advanceQuestionOrModule}>{label} →</Btn>
+        </div>
+      )
     }
     return null
   }
 
   const showQuestion = isInteractive && ['question', 'reveal', 'explanation'].includes(phase)
-  const showRanking  = isInteractive && !isPoll && ['leaderboard'].includes(phase)
   const showPodium   = session.status === 'ended'
 
   const joinUrl = `${PROD_BASE}/#/live/${session.code}`
@@ -480,23 +475,6 @@ const Control = ({ session: initial, moduleList, onExit }) => {
                 <RichText as="p" style={{ fontSize: 14, color: 'var(--text-sec)', lineHeight: 1.7, margin: 0 }}>{localQ?.explanation || session.current_reveal?.explanation}</RichText>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Ranking (solo aplica a quiz — las encuestas no califican) */}
-        {showRanking && (
-          <div style={{ padding: '20px 24px', borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)', marginBottom: 20 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--dark)', marginBottom: 14, textAlign: 'center' }}>Tabla de posiciones</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {parts.slice(0, 10).map((p, i) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, background: i < 3 ? 'var(--orange-bg)' : 'var(--bg)' }}>
-                  <span style={{ fontSize: 16, fontWeight: 800, minWidth: 30 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-                  <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--dark)' }}>{p.nombre} {p.apellido || ''} {p.salon ? <span style={{ color: 'var(--subtle)', fontSize: 12 }}>· {p.salon}</span> : ''}</span>
-                  <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--orange)' }}>{p.score}</span>
-                </div>
-              ))}
-              {parts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Sin participantes aún.</p>}
-            </div>
           </div>
         )}
 

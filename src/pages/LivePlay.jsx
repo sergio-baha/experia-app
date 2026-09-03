@@ -6,7 +6,7 @@ import { primeAudio, isMuted, toggleMute } from '../lib/sound.js'
 // =============================================
 // EXPERIA — Modo Aula en Vivo · Estudiante (página pública, sin login)
 // Acceso: /#/live  o  /#/live/<PIN>
-// El ciclo de pregunta/revelado/leaderboard/podio vive en LiveQuestionView
+// El ciclo de pregunta/revelado/explicación/podio vive en LiveQuestionView
 // (compartido con la Clase en Vivo Guiada de estudiantes logueados).
 // =============================================
 

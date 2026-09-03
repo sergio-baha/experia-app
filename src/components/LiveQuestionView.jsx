@@ -15,8 +15,11 @@ const MyAvatar = ({ cfg, size, expression }) => (cfg
   ? <React.Suspense fallback={null}><LiveAvatar cfg={cfg} size={size} expression={expression} /></React.Suspense>
   : null)
 // =============================================
-// EXPERIA — Modo Aula en Vivo: ciclo de pregunta/revelado/leaderboard/podio,
-// compartido entre la página pública del estudiante (LivePlay.jsx) y la
+// EXPERIA — Modo Aula en Vivo: ciclo de pregunta/revelado/explicación,
+// repetido pregunta por pregunta, y podio al final (sep 2026: se quitó la
+// tabla de posiciones intermedia — el ranking solo se muestra en el podio,
+// para no repartir la atención entre competir y entender cada pregunta).
+// Compartido entre la página pública del estudiante (LivePlay.jsx) y la
 // Clase en Vivo Guiada (GuidedClassView.jsx). Sirve tanto para quiz
 // (con respuesta correcta y puntaje) como para poll/encuesta (sin
 // respuesta correcta: muestra distribución en vivo en vez de acierto/error).
@@ -99,7 +102,7 @@ const PollBars = ({ sessionId, index, options, myAns }) => {
   )
 }
 
-// ---------- Ciclo de pregunta/revelado/leaderboard/podio ----------
+// ---------- Ciclo de pregunta/revelado/explicación/podio ----------
 // `avatar`: configuración del avatar del estudiante. Solo la pasa la Clase en
 // Vivo Guiada (ahí hay sesión iniciada); en la página pública llega undefined y
 // todo se ve exactamente como antes.
@@ -213,23 +216,6 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
       </div></Center>
     )
   }
-
-  if (session.phase === 'leaderboard') return (
-    <Center><div style={cardStyle}>
-      <h2 style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, color: 'var(--dark)', marginBottom: 14 }}>Tabla de posiciones</h2>
-      <Ranking list={parts.slice(0, 8)} meId={participant.id} />
-      {/* Si el estudiante no entró al top 8, su fila no aparece arriba y se
-          quedaría sin saber cómo va. En un salón de 30, eso es la mayoría del
-          curso. Misma info que ya se muestra en `question` y en el podio. */}
-      {me && myRank > 8 && (
-        <div style={{ marginTop: 12, textAlign: 'center', padding: '12px', borderRadius: 12, background: 'var(--orange-bg)' }}>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>Tu posición: </span>
-          <b style={{ color: 'var(--orange)' }}>#{myRank} · {me.score} pts</b>
-        </div>
-      )}
-      <p style={{ textAlign: 'center', color: 'var(--subtle)', fontSize: 13, marginTop: 14 }}>Espera la siguiente pregunta…</p>
-    </div></Center>
-  )
 
   if (session.phase === 'reveal' || session.phase === 'explanation') {
     const correct = session.current_reveal?.correct
