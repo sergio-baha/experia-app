@@ -206,22 +206,22 @@ const ART = {
   detective: {
     src: '/tutores/tutor-lenguaje.png',
     body: { x: .0094, y: .0046, w: .3740, h: .9898 },
-    head: { x: .1286, y: .010, w: .1125, h: .200 },
+    head: { x: .1432, y: .0574, w: .1125, h: .200 },
   },
   'escape-room': {
     src: '/tutores/tutor-matematicas.png',
     body: { x: .0094, y: .0046, w: .3187, h: .9898 },
-    head: { x: .0500, y: .024, w: .1125, h: .200 },
+    head: { x: .1068, y: .0481, w: .1125, h: .200 },
   },
   lab: {
     src: '/tutores/tutor-ciencias-naturales.png',
     body: { x: .0094, y: .0046, w: .1891, h: .9898 },
-    head: { x: .0450, y: .010, w: .1125, h: .200 },
+    head: { x: .0469, y: .0806, w: .1125, h: .200 },
   },
   'time-travel': {
     src: '/tutores/tutor-ciencias-sociales.png',
     body: { x: .0094, y: .0046, w: .1568, h: .9898 },
-    head: { x: .0188, y: .025, w: .1125, h: .200 },
+    head: { x: .0260, y: .0480, w: .1125, h: .200 },
   },
 }
 
