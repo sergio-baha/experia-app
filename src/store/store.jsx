@@ -375,6 +375,16 @@ const isBaseCourse = (c) => !!c && c.is_active && !c.parent_course_id;
 const selectActiveCourseTheme = (s) =>
   (s.courses || []).find(c => c.id === s.enrolledCourseId)?.theme || null;
 
+// ¿El curso que el estudiante realmente ve (fork si existe, si no el
+// matriculado) exige haber estado en una Clase en Vivo Guiada antes de poder
+// avanzar por su cuenta? Ver `requires_live_to_start` (0063) — por diseño
+// es un candado por-curso, no una regla global: la inmensa mayoría de los
+// cursos no tiene esta columna en `true` y su ruta sigue libre como siempre.
+const selectRequiresLiveToStart = (s) => {
+  const id = s.effectiveCourseId || s.enrolledCourseId;
+  return !!(s.courses || []).find(c => c.id === id)?.requires_live_to_start;
+};
+
 // findModule se define aquí pero accede a XS de forma lazy (XS se define más adelante)
 // Funciona porque JS evalúa el cuerpo de la función solo cuando se llama, no cuando se declara
 function findModule(id) {
@@ -2485,6 +2495,6 @@ export {
   hashFor, issueCertificate, getActiveCourseTheme, reactCharacter,
   setPreviewMode,
   loadWorkshopAccess, isWorkshopEnabled, setWorkshopAccess, setWorkshopAccessBulk,
-  dbRowsToCourseModules, isBaseCourse, selectActiveCourseTheme, loadSessionCatalogs,
+  dbRowsToCourseModules, isBaseCourse, selectActiveCourseTheme, selectRequiresLiveToStart, loadSessionCatalogs,
   getCourseCertConfig, getCourseDisplayName, issueCourseCertificate,
 };

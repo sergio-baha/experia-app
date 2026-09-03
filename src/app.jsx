@@ -1,13 +1,13 @@
 import React from 'react'
 import { useStore, nav, doLogout } from './store/store.jsx'
-import { selectActiveCourseTheme, CLONE_PAGES } from './store/store.jsx'
+import { selectActiveCourseTheme, selectRequiresLiveToStart, CLONE_PAGES } from './store/store.jsx'
 import { startIdleWatch } from './lib/idleTimeout.js'
 import { applySavedTheme, applyLightOnly } from './lib/theme.js'
-import { useGuidedSession } from './lib/liveClient.js'
+import { useGuidedSession, hasCompletedLiveSession } from './lib/liveClient.js'
 import { NotifManager } from './components/ui.jsx'
 import CourseAmbient from './components/CourseAmbient.jsx'
 import { OnboardingModal } from './components/Onboarding.jsx'
-import GuidedSessionBanner, { RouteLockOverlay } from './components/GuidedSessionBanner.jsx'
+import GuidedSessionBanner, { RouteLockOverlay, WaitingFirstLiveOverlay } from './components/GuidedSessionBanner.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import Header from './components/Header.jsx'
 
@@ -144,6 +144,25 @@ const App = () => {
     }
   }, [guided.isJoined, guided.session?.status, guided.leave]);
 
+  // Candado de "requires_live_to_start" (0063, solo Sala de Escape -
+  // Matemáticas hoy): mientras el estudiante nunca haya estado en una Clase
+  // en Vivo Guiada de ESTE curso, no puede avanzar por su cuenta. Se consulta
+  // solo cuando aplica (el curso lo exige) — no es un chequeo global.
+  const liveGateCourseId    = useStore(s => s.effectiveCourseId || s.enrolledCourseId);
+  const requiresLiveToStart = useStore(selectRequiresLiveToStart);
+  const [hasLiveHistory, setHasLiveHistory] = React.useState(null); // null = aún sin resolver
+  React.useEffect(() => {
+    if (!(isLoggedIn && user?.role === 'student' && requiresLiveToStart && liveGateCourseId)) {
+      setHasLiveHistory(null);
+      return;
+    }
+    let alive = true;
+    hasCompletedLiveSession(liveGateCourseId)
+      .then(v => { if (alive) setHasLiveHistory(v); })
+      .catch(() => { if (alive) setHasLiveHistory(true); }); // si falla la consulta, no bloquear por un error de red
+    return () => { alive = false; };
+  }, [isLoggedIn, user?.role, requiresLiveToStart, liveGateCourseId]);
+
   // Aplica el tema visual inmersivo del curso activo en el elemento raíz.
   // Solo cuando el estudiante está logueado y dentro de su curso — nunca en login/landing.
   React.useEffect(() => {
@@ -196,6 +215,12 @@ const App = () => {
   // ruta de formación, no dentro de ella (mismo criterio que los guards de
   // curso/área de más arriba).
   const pendingGuided = role === 'student' && !!guided.session && !isClonePage;
+  // Candado permanente (hasta la primera Clase en Vivo) de cursos con
+  // `requires_live_to_start`. `pendingGuided` manda si ambos aplican a la vez
+  // (hay sesión activa esperando unirse Y nunca ha ido a una) — ahí sí hay
+  // algo concreto que hacer (unirse), así que ese aviso es más útil.
+  const waitingFirstLive = role === 'student' && requiresLiveToStart && hasLiveHistory === false && !isClonePage && !pendingGuided;
+  const routeLocked = pendingGuided || waitingFirstLive;
   // Esperar a que courses + userCourses estén cargados antes de decidir la ruta
   // del estudiante. Sin esto, el primer render ocurre con datos a medias y se ve
   // un parpadeo entre el mapa/onboarding y la selección de curso.
@@ -292,12 +317,13 @@ const App = () => {
         {role === 'student' && <GuidedSessionBanner session={guided.session} onJoin={guided.join} />}
         {!isFullPage && <Header onMenuClick={() => setMobileSidebarOpen(o => !o)} />}
         <main id="main-content" tabIndex="-1" className="page-enter" style={{ flex: 1, overflow: 'hidden', background: 'var(--bg)', outline: 'none', position: 'relative' }} key={page + (nodeId || '')}>
-          <div style={{ height: '100%', ...(pendingGuided ? { filter: 'blur(2px) saturate(.55)', pointerEvents: 'none', userSelect: 'none' } : {}) }}>
+          <div style={{ height: '100%', ...(routeLocked ? { filter: 'blur(2px) saturate(.55)', pointerEvents: 'none', userSelect: 'none' } : {}) }}>
             <React.Suspense fallback={<PageSpinner />}>
               {renderPage()}
             </React.Suspense>
           </div>
           {pendingGuided && <RouteLockOverlay session={guided.session} onJoin={guided.join} />}
+          {waitingFirstLive && <WaitingFirstLiveOverlay />}
         </main>
       </div>
     </div>

@@ -104,6 +104,15 @@ export const fetchParticipants = async (sessionId) => {
     .eq('session_id', sessionId).order('score', { ascending: false }).order('joined_at', { ascending: true })
   return data || []
 }
+// ¿Este estudiante ya estuvo en una Clase en Vivo Guiada de este curso que ya
+// terminó? RPC (0063) porque live_participants.user_id no es legible por la
+// tabla directo (column-privileges, 0029) — usado por el candado de
+// "requires_live_to_start" (ver selectRequiresLiveToStart en store.jsx).
+export const hasCompletedLiveSession = async (courseId) => {
+  const { data, error } = await supabase.rpc('has_completed_live_session', { p_course_id: courseId })
+  if (error) throw error
+  return !!data
+}
 export const fetchAnswerCounts = async (sessionId, index, numOptions) => {
   const { data } = await supabase.from('live_answers').select('answer_index')
     .eq('session_id', sessionId).eq('question_index', index)

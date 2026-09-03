@@ -1,71 +1,86 @@
 -- ============================================================
 -- 0062_seed_matematicas_quiz_simulacro.sql
--- Agrega 2 preguntas de simulacro tipo Saber al curso "Sala de Escape -
--- Matematicas" (theme = escape-room), UNA por modulo, INTERCALADAS entre
--- los modulos existentes (no las dos juntas al final) — para usarlas en
--- Modo Aula en Vivo: el profesor recorre la ruta completa y cuando llega a
--- una de estas preguntas se activa la evaluacion cronometrada + explicacion.
+-- Agrega 2 preguntas de simulacro tipo Saber, INTERCALADAS entre los
+-- módulos reales, al fork "Sala de Escape - Matematicas — mi versión"
+-- (el que se usa para dar la clase en vivo) — para Modo Aula en Vivo:
+-- el profesor recorre la ruta completa y al llegar a una de estas
+-- preguntas se activa la evaluación cronometrada + explicación.
 --
 -- EJECUTAR en Supabase SQL Editor (Dashboard > SQL Editor).
 --
--- Origen: "preguntas semana capacitacion Simulacro.docx". Ese documento
--- trae 8 preguntas en total, pero solo 2 son de matematicas (numeros
--- racionales y minimo comun multiplo); las otras 6 son de lectura
--- critica/sociales/ciencias y no se siembran aqui.
+-- ⚠️ HISTORIAL DE ESTE ARCHIVO (para que quede constancia — no repetir):
+-- 1) La primera versión asumía los títulos del seed 0014
+--    ("La Puerta del Numero", "La Sala de los Datos") contra el curso que
+--    devolviera `theme='escape-room'` LIMIT 1 (sin más criterio). Eso
+--    resultó estar mal en DOS frentes: (a) hay 3 cursos con ese theme
+--    (el demo "Por qué esa es la respuesta", el curso BASE "Sala de
+--    Escape - Matematicas" y un FORK por colegio "— mi versión"), así
+--    que el LIMIT 1 podía tocar cualquiera de forma no determinista; y
+--    (b) la ruta real ya no se parece al seed 0014 — fue reescrita desde
+--    el editor de ruta (títulos como "Encender la sala").
+-- 2) Esa primera versión SÍ se llegó a correr una vez contra el curso
+--    BASE (2bb289f1-45c6-47c3-a8fb-55b38f2e2e9b), dejando ahí un módulo
+--    suelto "Simulacro en Vivo — Matematicas" (las 2 preguntas juntas,
+--    sin intercalar). Este archivo lo borra de ese curso puntual como
+--    parte de la limpieza — no se toca nada más del curso base.
+-- 3) Confirmado por consulta directa a la BD: la clase en vivo se da
+--    desde el FORK 88136e1a-4564-45bd-b514-0ad6690b182c ("— mi versión",
+--    institución b743cac4-1631-408a-819b-b668d38eb26c), que tiene sus
+--    propios 7 módulos (todos "lesson", ninguno "quiz" todavía):
+--      1 Encender la sala · 2 Las reglas del escape
+--      3 Bitácora de intentos anteriores · 4 Primera ronda de candados
+--      5 Recarga de energía · 6 Los candados finales · 7 ¿Logramos escapar?
+--    Por eso este archivo apunta al fork por su UUID directo (ya
+--    verificado), no por `theme` ni por nombre — si el fork llegara a
+--    recrearse con otro id, hay que actualizar la constante de abajo.
 --
--- Ubicacion de las preguntas (por titulo del modulo pivote, NO por numero
--- de "order" fijo — si el tutor ya reordeno la ruta desde el editor, esto
--- se adapta al orden REAL en vez de asumir el del seed original 0014):
---   - Pregunta 1 (racionales) va justo DESPUES de "La Puerta del Numero"
---     (modulo 1, introductorio).
---   - Pregunta 2 (mcm) va justo DESPUES de "La Sala de los Datos"
---     (modulo de la mitad de la ruta).
+-- Ubicación de las preguntas en el fork (por título, no por número de
+-- "order" fijo, para adaptarse si se vuelve a reordenar desde el editor):
+--   - Pregunta 1 (racionales) justo DESPUÉS de "Encender la sala" (m.1).
+--   - Pregunta 2 (mcm) justo DESPUÉS de "Primera ronda de candados" (m.4).
 --
 -- Es idempotente: si "Pregunta en Vivo 1 — Numeros Racionales" ya existe
--- en el curso, no hace nada (no duplica ni vuelve a correr los corrimientos
+-- en el fork, no hace nada (no duplica ni vuelve a correr los corrimientos
 -- de "order", que solo deben aplicarse UNA vez).
 -- ============================================================
 
 DO $$
 DECLARE
-  v_course_id    uuid;
+  v_course_id    uuid := '88136e1a-4564-45bd-b514-0ad6690b182c'; -- fork "— mi versión"
+  v_base_id      uuid := '2bb289f1-45c6-47c3-a8fb-55b38f2e2e9b'; -- curso base (solo para la limpieza)
   v_order_intro  int;
   v_order_mid    int;
 BEGIN
 
-  SELECT id INTO v_course_id
-  FROM public.courses
-  WHERE theme = 'escape-room'
-  LIMIT 1;
-
-  IF v_course_id IS NULL THEN
-    RAISE EXCEPTION 'No se encontro el curso escape-room (Matematicas)';
-  END IF;
+  -- ── Limpieza: el módulo suelto que quedó en el curso BASE por la
+  -- corrida anterior de la primera versión de este archivo. Solo borra
+  -- ESE módulo puntual en ESE curso puntual — nada más del curso base.
+  DELETE FROM public.course_modules
+   WHERE course_id = v_base_id AND title = 'Simulacro en Vivo — Matematicas';
 
   IF EXISTS (
     SELECT 1 FROM public.course_modules
      WHERE course_id = v_course_id AND title = 'Pregunta en Vivo 1 — Numeros Racionales'
   ) THEN
-    RAISE NOTICE 'Las preguntas ya existen, no se duplican ni se vuelve a correr el corrimiento de orden.';
+    RAISE NOTICE 'Las preguntas ya existen en el fork, no se duplican ni se vuelve a correr el corrimiento de orden.';
     RETURN;
   END IF;
 
   SELECT "order" INTO v_order_intro FROM public.course_modules
-   WHERE course_id = v_course_id AND title = 'La Puerta del Numero';
+   WHERE course_id = v_course_id AND title = 'Encender la sala';
   SELECT "order" INTO v_order_mid FROM public.course_modules
-   WHERE course_id = v_course_id AND title = 'La Sala de los Datos';
+   WHERE course_id = v_course_id AND title = 'Primera ronda de candados';
 
   IF v_order_intro IS NULL OR v_order_mid IS NULL THEN
-    RAISE EXCEPTION 'No se encontraron los modulos pivote ("La Puerta del Numero" / "La Sala de los Datos"). Si la ruta fue renombrada desde el editor, ajusta los titulos de este script.';
+    RAISE EXCEPTION 'No se encontraron los modulos pivote ("Encender la sala" / "Primera ronda de candados") en el fork %. Si la ruta cambió de nuevo desde el editor, ajusta los títulos de este script.', v_course_id;
   END IF;
 
-  -- Se inserta primero la pregunta MAS ADELANTE en la ruta (usando su orden
+  -- Se inserta primero la pregunta MAS ADELANTE en la ruta (con su orden
   -- ORIGINAL, capturado arriba antes de tocar nada) para que el corrimiento
   -- de la pregunta anterior, más abajo, la vuelva a correr en cascada y las
-  -- dos terminen en la posición correcta. Ver comentario largo en el chat /
-  -- commit: invertir este orden desordena la ruta.
+  -- dos terminen en la posición correcta.
 
-  -- ── Pregunta 2 (mcm) justo después de "La Sala de los Datos" ────────────
+  -- ── Pregunta 2 (mcm) justo después de "Primera ronda de candados" ───────
   UPDATE public.course_modules SET "order" = "order" + 1
    WHERE course_id = v_course_id AND "order" > v_order_mid;
 
@@ -93,7 +108,7 @@ BEGIN
     }$jq2$::jsonb
   );
 
-  -- ── Pregunta 1 (racionales) justo después de "La Puerta del Número" ─────
+  -- ── Pregunta 1 (racionales) justo después de "Encender la sala" ─────────
   -- Este corrimiento usa el "order" ORIGINAL de la intro (capturado antes de
   -- tocar nada) y, como es mayor que v_order_mid, también vuelve a correr la
   -- Pregunta 2 recién insertada — es el efecto en cascada esperado.
@@ -124,6 +139,6 @@ BEGIN
     }$jq1$::jsonb
   );
 
-  RAISE NOTICE 'Preguntas en vivo insertadas e intercaladas en el curso escape-room.';
+  RAISE NOTICE 'Preguntas en vivo insertadas e intercaladas en el fork "— mi versión".';
 
 END $$;

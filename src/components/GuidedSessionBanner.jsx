@@ -72,4 +72,27 @@ export const RouteLockOverlay = ({ session, onJoin }) => {
   )
 }
 
+// Bloqueo de la ruta para cursos con `requires_live_to_start` (0063) mientras
+// el estudiante NUNCA ha estado en una Clase en Vivo Guiada de ese curso —
+// a diferencia de RouteLockOverlay (que es temporal, mientras hay una sesión
+// activa esperando a que se una), este candado no depende de que haya una
+// clase en curso: es "todavía no has ido a tu primera clase en vivo", y no
+// tiene botón de unirse porque puede que hoy no haya ninguna sesión abierta.
+// Deja de mostrarse en cuanto `hasCompletedLiveSession` da true (ver app.jsx).
+export const WaitingFirstLiveOverlay = () => (
+  <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', background: 'rgba(15,15,20,.45)', padding: 20 }}>
+    <div style={{ maxWidth: 360, width: '100%', background: 'var(--white)', borderRadius: 18,
+      padding: '28px 26px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+      <div style={{ fontSize: 34, marginBottom: 10 }}>🔒</div>
+      <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--dark)', marginBottom: 6 }}>
+        Tu profesor aún no ha iniciado la clase en vivo
+      </h3>
+      <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
+        Esta ruta se recorre en clase. Espera a que tu profesor inicie la sesión en vivo para empezar — en cuanto participes en una, quedará disponible para que avances por tu cuenta cuando quieras.
+      </p>
+    </div>
+  </div>
+)
+
 export default GuidedSessionBanner
