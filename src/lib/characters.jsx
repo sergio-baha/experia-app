@@ -205,23 +205,23 @@ const PlaceholderAvatar = () => (
 const ART = {
   detective: {
     src: '/tutores/tutor-lenguaje.png',
-    body: { x: .004, y: .007, w: .296, h: .993 },
-    head: { x: .1105, y: .020, w: .1125, h: .200 },
+    body: { x: .0094, y: .0046, w: .3740, h: .9898 },
+    head: { x: .1286, y: .010, w: .1125, h: .200 },
   },
   'escape-room': {
     src: '/tutores/tutor-matematicas.png',
-    body: { x: .0085, y: .007, w: .3165, h: .981 },
-    head: { x: .1105, y: .025, w: .1125, h: .200 },
+    body: { x: .0094, y: .0046, w: .3187, h: .9898 },
+    head: { x: .0500, y: .024, w: .1125, h: .200 },
   },
   lab: {
     src: '/tutores/tutor-ciencias-naturales.png',
-    body: { x: .017, y: .002, w: .329, h: .993 },
-    head: { x: .0700, y: .022, w: .1125, h: .200 },
+    body: { x: .0094, y: .0046, w: .1891, h: .9898 },
+    head: { x: .0450, y: .010, w: .1125, h: .200 },
   },
   'time-travel': {
     src: '/tutores/tutor-ciencias-sociales.png',
-    body: { x: .0085, y: .002, w: .3035, h: .998 },
-    head: { x: .0480, y: .028, w: .1125, h: .200 },
+    body: { x: .0094, y: .0046, w: .1568, h: .9898 },
+    head: { x: .0188, y: .025, w: .1125, h: .200 },
   },
 }
 
