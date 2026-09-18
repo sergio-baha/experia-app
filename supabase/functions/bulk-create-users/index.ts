@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
         area: u.area || null, institution_id: u.institution_id || null,
       },
     });
-    results.push({ email: u.email, ok: !error, error: error?.message });
+    results.push({ email: u.email, ok: !error, id: data?.user?.id, error: error?.message });
   }
   return json({ results }, 200, H);
 });

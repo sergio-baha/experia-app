@@ -659,10 +659,14 @@ const AdminPage = () => {
     return e;
   };
 
-  const handleCreate = () => {
+  const [creating, setCreating] = React.useState(false);
+  const handleCreate = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    createAccount(form.name.trim(), form.email.trim(), form.pass, form.role, form.area || null, form.institution.trim() || '');
+    setCreating(true);
+    const res = await createAccount(form.name.trim(), form.email.trim(), form.pass, form.role, form.area || null, form.institution.trim() || '');
+    setCreating(false);
+    if (res?.error) { setErrors({ server: res.error }); return; }
     setCreated(true);
     setTimeout(() => setCreated(false), 2500);
     setShowCreate(false);
@@ -993,11 +997,17 @@ const AdminPage = () => {
               {errors.area && <p style={{ fontSize:11, color:'var(--error)', marginTop:4 }}>{errors.area}</p>}
             </div>
           )}
+          {errors.server && (
+            <div style={{ padding:'10px 14px', borderRadius:10, background:'var(--error-bg)', border:'1px solid var(--error)',
+              fontSize:12, color:'var(--error)', lineHeight:1.5 }}>
+              No se pudo crear la cuenta: {errors.server}
+            </div>
+          )}
           <div style={{ display:'flex', gap:10, marginTop:8 }}>
             <Btn variant="secondary" full onClick={() => { setShowCreate(false); setErrors({}); }}>Cancelar</Btn>
             <Btn variant="gradient" full
-              disabled={form.role === 'student' && institutions.length === 0}
-              onClick={handleCreate}>Crear cuenta</Btn>
+              disabled={creating || (form.role === 'student' && institutions.length === 0)}
+              onClick={handleCreate}>{creating ? 'Creando…' : 'Crear cuenta'}</Btn>
           </div>
         </div>
       </Modal>

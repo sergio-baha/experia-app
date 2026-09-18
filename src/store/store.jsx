@@ -1488,21 +1488,50 @@ async function getAccessBlockReason(profile, institutions) {
   return null;
 }
 
-const createAccount = (name, email, pass, role, area, institution) => {
+// Crea la cuenta y ESPERA al servidor. Devuelve { ok } o { error }. La cuenta solo
+// entra al store cuando de verdad existe y ya con su `id` real — antes se agregaba
+// de forma optimista sin id y, si el edge function fallaba, el error quedaba solo
+// en consola: la cuenta parecía creada, no dejaba asignar cursos y desaparecía al
+// recargar.
+const createAccount = async (name, email, pass, role, area, institution) => {
   const { user, institutions } = XS.get();
-  if (user?.role !== 'admin') return;
-  const avatar = name.trim().charAt(0).toUpperCase();
+  if (user?.role !== 'admin') return { error: 'Solo un administrador puede crear cuentas.' };
+  const cleanEmail = email.trim();
+  const cleanName = name.trim();
   // Resolver institution_id desde el nombre para enviarlo al edge function
   const instByName = {};
   (institutions || []).forEach(i => { instByName[i.name.toLowerCase().trim()] = i.id; });
   const institution_id = instByName[(institution || '').toLowerCase().trim()] || null;
-  XS.set(s => ({ accounts: [...s.accounts, { email:email.trim(), name:name.trim(), avatar, role, area:area||null, institution:institution||'' }] }));
-  supabase.functions.invoke('bulk-create-users', {
-    body: { users: [{ name: name.trim(), email: email.trim(), pass, role, area: area||null, institution_id }] }
-  }).then(({ data, error }) => {
-    if (error) console.error('createAccount error:', error);
-    else if (data?.results?.[0]?.ok === false) console.error('createAccount failed:', data.results[0].error);
+
+  const { data, error } = await supabase.functions.invoke('bulk-create-users', {
+    body: { users: [{ name: cleanName, email: cleanEmail, pass, role, area: area||null, institution_id }] }
   });
+  if (error) {
+    // FunctionsHttpError trae la respuesta en error.context; FunctionsFetchError (red/CORS) no.
+    let detail = error.message;
+    try { const body = await error.context?.json?.(); if (body?.error) detail = body.error; } catch { /* sin cuerpo */ }
+    console.error('createAccount error:', error);
+    return { error: detail || 'No se pudo contactar el servidor.' };
+  }
+  const r = data?.results?.[0];
+  if (!r || r.ok === false) {
+    console.error('createAccount failed:', r);
+    return { error: r?.error || 'El servidor no confirmó la creación de la cuenta.' };
+  }
+
+  // La cuenta ya existe: traer su id real (el trigger handle_new_user creó el perfil).
+  let id = r.id || null;
+  if (!id) {
+    const { data: prof } = await supabase.from('profiles').select('id').eq('email', cleanEmail).maybeSingle();
+    id = prof?.id || null;
+  }
+  const account = {
+    id, email: cleanEmail, name: cleanName, avatar: cleanName.charAt(0).toUpperCase(),
+    role, area: area||null, institution: institution||'', institution_id,
+    cohort_id: null, is_active: true, ui_variant: null, pass: '',
+  };
+  XS.set(s => ({ accounts: [...s.accounts.filter(a => a.email !== cleanEmail), account] }));
+  return { ok: true, id };
 };
 const deleteAccount = (email) => {
   const { user } = XS.get();
