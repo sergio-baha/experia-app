@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Production:** https://experia-app.pages.dev  
 **Version:** v15 (July 2026) — multi-course + 4 immersive themes + **Modo Aula en Vivo** (quiz sincrónico tipo Kahoot) + **análisis de ítems** (dificultad/discriminación/distractores)
+**Oct 2026:** editor de ruta con selector de colegio (§16) + fórmulas e imágenes en el editor de preguntas (§5)
 
 ---
 
@@ -742,6 +743,30 @@ módulo 3 de las seis rutas (incluye Ciencias Sociales) sin tocar lo demás.
   `--lvl-1..4` (+ `--lvl-ink-*` para las cifras), validada con el validador de la
   guía dataviz. ⚠️ Los temas de curso son fondos oscuros aunque la app esté en
   claro: por eso `[data-course-theme]` usa la variante oscura de la rampa.
+
+### 16. Editor de ruta: un tutor, varios colegios (oct 2026)
+
+Un tutor puede dar el mismo curso en varios colegios, y cada colegio tiene su
+propia versión del curso (fork: `courses.parent_course_id` + `institution_id`).
+`InstructorRouteEditor.jsx` pinta sobre el editor la barra **🏫 Colegio**
+(`SchoolSwitcher`): una pastilla por colegio del tutor.
+
+- **Colegio con versión** → la abre. **Sin versión** ("＋ crear versión") → modal
+  que la crea con `forkCourseForInstitution` copiando la ruta que se elija: la que
+  se está editando (por defecto), la ruta base o la de otro colegio. Se copia lo
+  **publicado**; un borrador no viaja.
+- **Curso no habilitado en el colegio** (`institution_courses`) → pastilla en
+  gris. Habilitarlo lo hace un admin y **se lo concede a todos los estudiantes
+  del colegio** (`sync_my_institution_courses`, 0028) — por eso el editor no lo
+  ofrece.
+- Cambios sin guardar: `CourseEditor` reporta `onDirtyChange` (foto JSON de
+  módulos + nombre + certificado tras cargar/guardar/publicar/descartar) y se pide
+  confirmación al cambiar de colegio o "Volver".
+- ⚠️ **Los colegios salen de `instructor_institutions`.** Sin filas allí se cae al
+  `institution_id` del perfil y la barra muestra **uno solo** — es la primera
+  causa de "solo me aparece un colegio". Se asignan en Admin → Colegios.
+  `scripts/demo_tutor_dos_colegios.sql` arma un colegio de prueba sin
+  estudiantes para demostrarlo.
 
 ---
 
