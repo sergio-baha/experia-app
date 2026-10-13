@@ -2,7 +2,8 @@ import React from 'react'
 import { PlusIc, XIc, Btn, Modal, ImageUploader, FileUploader } from '../ui.jsx'
 import { SECTION_TYPES } from './constants.js'
 import { ActivityPicker, ActivityCard } from '../ActivityCard.jsx'
-import { resolveActivity, ACTIVITY_BANKS } from '../../lib/activityBank.js'
+import { resolveActivity, normalizeCustom, CUSTOM_ID, ACTIVITY_BANKS } from '../../lib/activityBank.js'
+import { CustomActivityForm } from '../CustomActivityForm.jsx'
 import { isTutorOnlySection } from '../../pages/lesson.jsx'
 
 // Ancho y alto de imágenes y del visor de PDF. Ambos son OPCIONALES y se
@@ -24,10 +25,13 @@ const SizeFields = ({ sec, idx, update, inp, hint }) => (
   </>
 )
 
-// Recuadro destacado para elegir la actividad del banco de este módulo.
-const ActivityPanel = ({ sec, onPick }) => {
+// Recuadro destacado para elegir la actividad del banco de este módulo, o
+// crear una propia (queda en `sec.custom` y pasa a ser la por defecto).
+const ActivityPanel = ({ sec, onPatch }) => {
   const current = resolveActivity(sec)
+  const custom = normalizeCustom(sec.custom)
   const [preview, setPreview] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
   return (
     <div style={{ padding: '14px 16px', borderRadius: 14, border: '2px solid var(--orange)', background: 'var(--orange-bg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -47,10 +51,17 @@ const ActivityPanel = ({ sec, onPick }) => {
       </div>
       {preview && <div style={{ marginTop: -20 }}><ActivityCard activity={current} /></div>}
       <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8 }}>
-        Elige la que mejor se adapte a tu grupo{sec.bank === 'fisicas' ? ' (solo pausas activas físicas)' : ' — físicas o rompehielos'}.
+        Elige la que mejor se adapte a tu grupo{sec.bank === 'fisicas' ? ' (solo pausas activas físicas)' : ' — físicas o rompehielos'},
+        o crea una propia si ninguna del banco te sirve.
         Es la que verán tus estudiantes; en la Clase en Vivo aún puedes cambiarla.
       </div>
-      <ActivityPicker scope={sec.bank || 'ambas'} value={current?.id} onChange={onPick} />
+      {creating ? (
+        <CustomActivityForm initial={sec.custom} saveLabel="Guardar y usar en este módulo" onCancel={() => setCreating(false)}
+          onSave={data => { onPatch({ custom: data, activityId: CUSTOM_ID }); setCreating(false) }} />
+      ) : (
+        <ActivityPicker scope={sec.bank || 'ambas'} value={current?.id} onChange={id => onPatch({ activityId: id })}
+          custom={custom} onCreate={() => setCreating(true)} />
+      )}
     </div>
   )
 }
@@ -150,7 +161,8 @@ const CustomModuleModal = ({ open, initial, onClose, onSave, extraActions }) => 
             (apertura / pausa activa), el profesor la elige aquí arriba viendo
             todo el banco, sin buscarla entre las secciones. */}
         {sections.map((sec, idx) => sec.type !== 'activity' ? null : (
-          <ActivityPanel key={'act' + (sec._id || idx)} sec={sec} onPick={id => updateSection(idx, 'activityId', id)} />
+          <ActivityPanel key={'act' + (sec._id || idx)} sec={sec}
+            onPatch={patch => setSections(s => s.map((x, i) => i === idx ? { ...x, ...patch } : x))} />
         ))}
 
         <div>

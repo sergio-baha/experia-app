@@ -1451,7 +1451,8 @@ const saveAvatarConfig = (cfg) => {
 // --- Banco de actividades: la elección del profesor (migración 0069) ----------
 // El profesor elige en la Clase en Vivo qué rompehielos / pausa activa usar en
 // cada módulo con sección `activity`. Se recuerda en SU perfil
-// (profiles.activity_prefs = { <moduleId>: <activityId> }) para que la próxima
+// (profiles.activity_prefs = { <moduleId>: <activityId> | { custom } }, este
+// último si creó una actividad propia en la clase) para que la próxima
 // clase arranque con la misma; la ruta conserva su actividad por defecto.
 const saveActivityPref = (moduleId, activityId) => {
   const { user } = XS.get();

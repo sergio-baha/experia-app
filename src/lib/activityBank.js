@@ -19,6 +19,8 @@
 export const ACTIVITY_BANKS = {
   fisicas:     { id: 'fisicas',     label: 'Pausas activas físicas', icon: '🤸' },
   rompehielos: { id: 'rompehielos', label: 'Rompehielos',            icon: '🎲' },
+  // No es un banco: rotula la actividad que crea el profesor (ver CUSTOM_ID).
+  propia:      { id: 'propia',      label: 'Actividad propia',       icon: '✏️' },
 }
 
 // Qué bancos ofrece cada valor de `section.bank`.
@@ -335,13 +337,40 @@ export const getActivity = (id) => BY_ID[id] || null
 export const activitiesForScope = (scope) =>
   ACTIVITIES.filter(a => (BANK_SCOPES[scope] || BANK_SCOPES.ambas).includes(a.bank))
 
-// Actividad que se muestra para una sección `{type:'activity'}`: la elegida
-// (por el profesor en la clase en vivo) si pertenece al banco de la sección;
-// si no, la por defecto de la ruta; si tampoco, la primera del banco. Nunca
-// devuelve null con un banco válido — el estudiante siempre ve algo.
+// ── Actividad propia ─────────────────────────────────────────────────────────
+// Si el profesor no quiere una del banco, crea la suya. Dos lugares:
+//   · en la ruta (editor): `section.custom = {...}` + `activityId: 'custom'`,
+//     y queda como la actividad por defecto de ese módulo;
+//   · solo para una clase en vivo: la elección es `{ custom: {...} }` en vez
+//     de un id (live_sessions.activity_choices / profiles.activity_prefs).
+// Misma forma que una del banco (title, format, duration, goal, steps,
+// outcome), con imagen opcional.
+export const CUSTOM_ID = 'custom'
+
+export const normalizeCustom = (c) => {
+  if (!c || !String(c.title || '').trim()) return null
+  const t = (v) => String(v || '').trim()
+  return {
+    id: CUSTOM_ID, bank: 'propia', title: t(c.title), format: t(c.format),
+    duration: t(c.duration) || '10 min', goal: t(c.goal), outcome: t(c.outcome), image: t(c.image),
+    steps: (c.steps || []).map(s => ({ time: t(s.time), title: t(s.title), text: t(s.text) }))
+      .filter(s => s.title || s.text),
+  }
+}
+
+// Actividad que se muestra para una sección `{type:'activity'}`:
+//   1. la elegida en la clase en vivo (del banco de la sección, o propia);
+//   2. la por defecto de la ruta (del banco, o la propia de la sección);
+//   3. la primera del banco.
+// Nunca devuelve null con un banco válido — el estudiante siempre ve algo.
 export const resolveActivity = (section, choice) => {
   const scope = BANK_SCOPES[section?.bank] ? section.bank : 'ambas'
   const allowed = BANK_SCOPES[scope]
   const pick = (id) => { const a = getActivity(id); return a && allowed.includes(a.bank) ? a : null }
-  return pick(choice) || pick(section?.activityId) || activitiesForScope(scope)[0] || null
+  const custom = normalizeCustom(section?.custom)
+  const chosen = choice && typeof choice === 'object' ? normalizeCustom(choice.custom)
+    : choice === CUSTOM_ID ? custom : pick(choice)
+  return chosen
+    || (section?.activityId === CUSTOM_ID ? custom : pick(section?.activityId))
+    || activitiesForScope(scope)[0] || null
 }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { ACTIVITY_BANKS, BANK_SCOPES, activitiesForScope } from '../lib/activityBank.js'
+import { ACTIVITY_BANKS, BANK_SCOPES, CUSTOM_ID, activitiesForScope } from '../lib/activityBank.js'
 
 // =============================================
 // EXPERIA — Banco de actividades (rompehielos / pausas activas físicas)
@@ -32,26 +32,28 @@ export const ActivityCard = ({ activity, delay = 0 }) => {
       border: '1px solid var(--border)', boxShadow: 'var(--sh-md)', animation: `fadeUp .45s ${delay}ms ease both` }}>
       <div style={{ padding: '18px 22px 14px' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-          <span style={pill('var(--orange-bg)', 'var(--orange)')}>{bank?.icon} {bank?.label} · #{activity.num}</span>
-          <span style={pill('var(--purple-bg)', 'var(--purple)')}>👥 {activity.format}</span>
+          <span style={pill('var(--orange-bg)', 'var(--orange)')}>{bank?.icon} {bank?.label}{activity.num ? ` · #${activity.num}` : ''}</span>
+          {activity.format && <span style={pill('var(--purple-bg)', 'var(--purple)')}>👥 {activity.format}</span>}
           <span style={pill('var(--bg-alt)', 'var(--text-sec)')}>⏱️ {activity.duration}</span>
         </div>
         <h3 style={{ fontSize: 21, fontWeight: 800, color: 'var(--dark)', margin: 0, lineHeight: 1.3 }}>{activity.title}</h3>
-        <p style={{ fontSize: 14, color: 'var(--text-sec)', lineHeight: 1.6, margin: '8px 0 0' }}>
-          <strong>Objetivo:</strong> {activity.goal}
-        </p>
+        {activity.goal && (
+          <p style={{ fontSize: 14, color: 'var(--text-sec)', lineHeight: 1.6, margin: '8px 0 0' }}>
+            <strong>Objetivo:</strong> {activity.goal}
+          </p>
+        )}
       </div>
 
-      <button onClick={() => setZoom(true)} title="Ver imagen completa"
+      {activity.image && <button onClick={() => setZoom(true)} title="Ver imagen completa"
         style={{ display: 'block', width: '100%', padding: 0, border: 'none', cursor: 'zoom-in', background: 'var(--bg-alt)' }}>
         <img src={activity.image} alt={activity.title} loading="lazy"
           style={{ display: 'block', width: '100%', maxHeight: 520, objectFit: 'contain' }} />
-      </button>
+      </button>}
 
       <div style={{ padding: '18px 22px 20px' }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+        {activity.steps.length > 0 && <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
           Paso a paso
-        </div>
+        </div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {activity.steps.map((st, i) => (
             <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -89,7 +91,9 @@ export const ActivityCard = ({ activity, delay = 0 }) => {
 
 // Selector del profesor. `scope` = valor de `section.bank` ('ambas' muestra
 // pestañas Física / Rompehielos; 'fisicas' solo las físicas).
-export const ActivityPicker = ({ scope = 'ambas', value, onChange, compact }) => {
+// `custom` = actividad propia ya creada (se elige con CUSTOM_ID) y
+// `onCreate` abre el formulario para crear/editar la propia.
+export const ActivityPicker = ({ scope = 'ambas', value, onChange, compact, custom, onCreate }) => {
   const banks = BANK_SCOPES[scope] || BANK_SCOPES.ambas
   const current = activitiesForScope(scope).find(a => a.id === value)
   const [tab, setTab] = React.useState(current?.bank || banks[0])
@@ -110,6 +114,25 @@ export const ActivityPicker = ({ scope = 'ambas', value, onChange, compact }) =>
               </button>
             )
           })}
+        </div>
+      )}
+      {(custom || onCreate) && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {custom && (
+            <button type="button" onClick={() => onChange(CUSTOM_ID)} title={custom.goal}
+              style={{ padding: '8px 12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font)', fontSize: 12.5, fontWeight: 700,
+                border: `2px solid ${value === CUSTOM_ID ? 'var(--orange)' : 'var(--border)'}`,
+                background: value === CUSTOM_ID ? 'var(--orange-bg)' : 'var(--white)', color: 'var(--dark)' }}>
+              {value === CUSTOM_ID ? '✓ ' : ''}✏️ {custom.title} <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· propia</span>
+            </button>
+          )}
+          {onCreate && (
+            <button type="button" onClick={onCreate}
+              style={{ padding: '8px 12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font)', fontSize: 12.5, fontWeight: 700,
+                border: '2px dashed var(--orange)', background: 'var(--white)', color: 'var(--orange)' }}>
+              {custom ? '✏️ Editar mi actividad propia' : '＋ Crear actividad propia'}
+            </button>
+          )}
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${compact ? 130 : 150}px, 1fr))`, gap: 8,

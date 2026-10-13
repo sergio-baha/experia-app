@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabaseClient.js'
 import { Btn, Confetti, RichText, QuestionText } from '../components/ui.jsx'
 import { LessonBody } from './lesson.jsx'
 import { ActivityPicker } from '../components/ActivityCard.jsx'
-import { resolveActivity, ACTIVITY_BANKS } from '../lib/activityBank.js'
+import { resolveActivity, normalizeCustom, CUSTOM_ID, ACTIVITY_BANKS } from '../lib/activityBank.js'
+import { CustomActivityForm } from '../components/CustomActivityForm.jsx'
 import { isQuestionRound, BANK_AREAS, ROUND_LABELS } from '../lib/questionBankMeta.js'
 import { LivePassage, hintDelayMs, OptionImage, optionsLayout } from '../components/LiveQuestionView.jsx'
 import {
@@ -219,6 +220,7 @@ const ActivityChooser = ({ session, module, onSession }) => {
   const choice  = session.activity_choices?.[module.id]
   const current = section ? resolveActivity(section, choice) : null
   const [open, setOpen]   = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [err, setErr]     = React.useState('')
 
@@ -227,7 +229,7 @@ const ActivityChooser = ({ session, module, onSession }) => {
     try {
       onSession(await saveLiveActivityChoice(session, module.id, id))
       if (remember) saveActivityPref(module.id, id)
-      setOpen(false)
+      setOpen(false); setCreating(false)
     } catch (e) {
       setErr(/activity_choices/.test(e?.message || '')
         ? 'Falta aplicar la migración 0069 en Supabase para poder cambiar la actividad.'
@@ -243,6 +245,7 @@ const ActivityChooser = ({ session, module, onSession }) => {
   }, [module.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!section || !current) return null
+  const choiceCustom = choice && typeof choice === 'object' ? normalizeCustom(choice.custom) : null
   return (
     <div style={{ padding: '14px 18px', borderRadius: 14, background: 'var(--white)', border: '1.5px solid var(--orange)', marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -261,7 +264,17 @@ const ActivityChooser = ({ session, module, onSession }) => {
       </div>
       {open && (
         <div style={{ marginTop: 12 }}>
-          <ActivityPicker scope={section.bank} value={current.id} onChange={id => choose(id)} />
+          {creating ? (
+            // Actividad propia SOLO para esta clase: viaja como { custom } en
+            // activity_choices (no cambia la ruta). Para dejarla por defecto en
+            // el módulo, se crea desde el editor de ruta.
+            <CustomActivityForm initial={current.bank === 'propia' ? current : null} saveLabel="Usar en esta clase"
+              onCancel={() => setCreating(false)} onSave={data => choose({ custom: data })} />
+          ) : (
+            <ActivityPicker scope={section.bank} value={current.id}
+              custom={choiceCustom || normalizeCustom(section.custom)} onCreate={() => setCreating(true)}
+              onChange={id => (id === CUSTOM_ID && choiceCustom ? setOpen(false) : choose(id))} />
+          )}
           <p style={{ fontSize: 11.5, color: 'var(--subtle)', margin: '8px 0 0' }}>
             Tus estudiantes ven al instante la actividad que elijas. Se recordará para tu próxima clase.
           </p>
