@@ -13,3 +13,5 @@ scripts/data/grupos_jm.mjs
 scripts/grupos_jm.sql
 scripts/out/
 scripts/docentes_reales_jm.sql
+Insumos/
+scripts/crear_instructores_ceinfes.sql

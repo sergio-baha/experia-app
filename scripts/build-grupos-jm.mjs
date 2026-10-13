@@ -13,6 +13,7 @@ import XLSX from 'xlsx'
 import { EJES, DOCENTES, GRUPOS, COLEGIO, LIBRO_DEFAULT } from './data/grupos_jm.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+const STORAGE_PUBLIC = LIBRO_DEFAULT.url.replace(/lesson-files\/.*$/, '')
 const q = (s) => (s == null ? 'null' : `'${String(s).replace(/'/g, "''")}'`)
 // Contraseña temporal de las cuentas nuevas: se pasa por entorno, nunca en el repo.
 //   PowerShell: $env:PASS_TEMPORAL='...'; node scripts/build-grupos-jm.mjs
@@ -165,6 +166,10 @@ for (const g of GRUPOS) {
   // Si el grupo trae su informe oficial (`grafica`), manda ese: su cálculo es
   // por respuestas ponderadas, no el promedio simple de estudiantes.
   const vals = g.grafica || promedios(g.ejes)
+  // Libro: el de la unidad #1 del grupo. El de la 3 es LIBRO_DEFAULT; los otros
+  // se buscan en Storage por nombre (se suben una vez desde la plataforma).
+  const top = Number(g.unidades?.[0]?.title.match(/Unidad (\d)/)?.[1])
+  const libroUnidad = top && top !== 3 ? top : null
   const bars = EJES.map((label, i) => `jsonb_build_object('label', ${q(label)}, 'value', ${vals[i]}, 'color', ${i + 1})`)
   // Unidades priorizadas del informe del grupo (si las hay) → reemplazan las del plan.
   const unitsSql = g.unidades && `jsonb_build_array(\n${g.unidades.map(u =>
@@ -174,7 +179,12 @@ for (const g of GRUPOS) {
 -- Gráfica (${g.grafica ? 'informe oficial' : 'PROVISIONAL: promedio simple'}): ${vals.join(' · ')}
 -- Unidades: ${g.unidades ? g.unidades.map(u => u.title.split(':')[0]).join(' → ') : 'copiadas de ONCE (provisional)'}
 do $$
-declare v_teacher uuid; v_group uuid;
+declare v_teacher uuid; v_group uuid;${libroUnidad ? `
+  -- Libro de su unidad #1 (${libroUnidad}): el PDF subido a Storage con ese nombre.
+  v_libro text := (select ${q(STORAGE_PUBLIC)} || o.name from storage.objects o
+                    where o.bucket_id = 'attachments'
+                      and o.name ilike ${q(`%Plata%2024%QU_MICA_UNIDAD_${libroUnidad}.pdf`)}
+                    order by o.created_at desc limit 1);` : ''}
 begin
   select id into v_teacher from public.profiles where lower(email) = ${q(d.email.toLowerCase())};
 
@@ -213,8 +223,13 @@ ${g.alumnos.map((a, i) => `    (v_group, ${q(a[1])}, ${q(a[0])}, ${i})`).join(',
        units = ${unitsSql}` : ''},
        -- Libro del grupo (0068). Con \`libro\` propio en los datos se impone;
        -- con el de por defecto solo se pone si el tutor no subió otro.
-       book_title = ${g.libro ? q(g.libro.title) : `case when book_url is null then ${q(LIBRO_DEFAULT.title)} else book_title end`},
-       book_url   = ${g.libro ? q(g.libro.url) : `coalesce(book_url, ${q(LIBRO_DEFAULT.url)})`}
+       book_title = ${g.libro ? q(g.libro.title) : libroUnidad
+         ? `case when v_libro is not null then ${q(`SABERES 11 PLATA QUÍMICA UNIDAD ${libroUnidad}`)}
+                    when book_url is null then ${q(LIBRO_DEFAULT.title)} else book_title end`
+         : `case when book_url is null then ${q(LIBRO_DEFAULT.title)} else book_title end`},
+       book_url   = ${g.libro ? q(g.libro.url) : libroUnidad
+         ? `coalesce(v_libro, book_url, ${q(LIBRO_DEFAULT.url)})`
+         : `coalesce(book_url, ${q(LIBRO_DEFAULT.url)})`}
    where group_id = v_group;
 end $$;
 `)
@@ -228,7 +243,8 @@ select g.name as grupo, p.email as docente, g.grade,
        case when p.ui_variant = 'clone' then 'ok' else 'FALTA: activar modo clon' end as modo_clon,
        (select count(*) from public.clone_group_students s where s.group_id = g.id) as alumnos,
        jsonb_array_length(coalesce(u.units, '[]'::jsonb)) as unidades,
-       jsonb_array_length(coalesce(u.chart->'bars', '[]'::jsonb)) as ejes
+       jsonb_array_length(coalesce(u.chart->'bars', '[]'::jsonb)) as ejes,
+       u.units->0->>'title' as unidad_1, u.book_title as libro
   from public.clone_groups g
   join public.profiles p on p.id = g.teacher_id
   left join public.clone_unit_plans u on u.group_id = g.id
