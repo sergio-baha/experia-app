@@ -57,6 +57,8 @@ dos partes). Las claves salen de las tablas de respuestas de cada documento.
     opción vacío. La 24 trae tres figuras en el enunciado y se publican en una
     sola imagen, en fila (`COMPOSITES`): una pregunta tiene una sola imagen de
     enunciado.
+  - La figura de la 44 (rueda giratoria) no venía en el Word: llegó aparte y
+    vive en `scripts/data/banco-preguntas/extra/mate-44.png` (`EXTRA_IMGS`).
   - Fórmulas que en texto plano quedaban ambiguas van en LaTeX (`\( … \)`,
     KaTeX). Dificultad al azar con **su propio generador**, para no barajar la
     de las otras asignaturas.

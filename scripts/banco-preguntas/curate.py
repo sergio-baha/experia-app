@@ -105,6 +105,21 @@ def export_images():
             save_jpg(load_rgb(folder, img), name)
 
 
+# ── Imágenes que no vienen en el Word ────────────────────────────────────────
+# El equipo académico las envía aparte: viven en
+# scripts/data/banco-preguntas/extra/<id>.png y son la imagen del enunciado.
+EXTRA_IMGS = {
+    'mate-44': 'matematicas/rueda-giratoria',
+}
+
+
+def extra_image(qid):
+    name = EXTRA_IMGS[qid]
+    src = os.path.join(REPO, 'scripts', 'data', 'banco-preguntas', 'extra', qid + '.png')
+    save_jpg(Image.open(src).convert('RGB'), name)
+    return '/preguntas/' + name + '.jpg'
+
+
 # ── Opciones con imagen ──────────────────────────────────────────────────────
 # Preguntas cuyas opciones son gráficas, tablas o diseños: cada opción lleva su
 # imagen (optionImages, alineado por índice con options) y el texto va vacío.
@@ -568,8 +583,8 @@ FIX = {
                                            r'\( \text{Temperatura} = -\text{Altitud} \times 100 + 10 \)']},
     # mate-47: el Word dice 10³ = 1/1₀ en lugar de 10³ = I/I₀.
     'mate-47': lambda q: {**q, 'stem': [r'La expresión \( 10^3 = \dfrac{I}{I_0} \) relaciona la sonoridad de un sonido de 30 decibeles con su intensidad (I) y la menor intensidad (I₀) que percibe el oído humano. ¿Cuántas veces es el valor de I respecto a I₀?']},
-    # mate-44: el Word dice "como muestra la figura", pero no trae la figura.
-    'mate-44': lambda q: {**q, 'stem': [q['stem'][0].replace(', como muestra la figura', ''),
+    # mate-44: el Word no trae la figura; llegó aparte (EXTRA_IMGS).
+    'mate-44': lambda q: {**q, 'stem': [q['stem'][0],
                                         'Para determinar el área que le corresponde a cada persona, se divide 2π entre 10, lo que determina el ángulo θ de cada sector, y se usa la fórmula del área de un sector circular:',
                                         r'\[ S = \dfrac{r^2\,\theta}{2} \]', 'donde r es el radio de la circunferencia.'] + q['stem'][4:],
                          'options': [o.replace(' m2', ' m²') for o in q['options']]},
@@ -742,6 +757,8 @@ for it in out_q:
     imgs = [x for x in imgs if x]
     if it['id'] in COMPOSITES:
         imgs = [compose(it['id'])]
+    if it['id'] in EXTRA_IMGS:
+        imgs = [extra_image(it['id'])]
     if opt_imgs:
         q['optionImages'] = [pub('mat', im) for im in opt_imgs]
         assert all(q['optionImages']) and len(q['optionImages']) == len(opts), it['id']
