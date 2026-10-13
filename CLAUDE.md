@@ -787,6 +787,9 @@ propia versión del curso (fork: `courses.parent_course_id` + `institution_id`).
   otro colegio y ⭐ guardar como plantilla. Solo dentro del mismo curso.
   Filtro **"Solo las mías"** (por defecto para el tutor): sus plantillas y las
   versiones de sus colegios; la ruta base siempre se ve. El admin ve todas.
+  Solo cursos de las asignaturas: los de tema `detective`, `escape-room`,
+  `lab` (3 laboratorios) y `time-travel` (`ROUTE_VERSION_THEMES`, por tema y no
+  por nombre).
   - **Plantilla** = fila de `courses` con `is_template = true`,
     `parent_course_id` = curso base e `institution_id` NULL (constraint
     `courses_template_shape`). Como la resolución del estudiante busca la

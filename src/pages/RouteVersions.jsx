@@ -18,6 +18,12 @@ import { resolveActivity } from '../lib/activityBank.js'
 // curso: una versión de Matemáticas no se ofrece para Lenguaje.
 // =============================================
 
+// Solo las rutas de las asignaturas (cursos con tema inmersivo): Detectives,
+// Sala de Escape, los 3 Laboratorios (Biología, Física, Química) y Viajeros del
+// Tiempo. Se filtra por TEMA y no por nombre, para que un cambio de nombre no
+// saque un curso de la lista.
+const ROUTE_VERSION_THEMES = new Set(['detective', 'escape-room', 'lab', 'time-travel'])
+
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .8, display: 'block', marginBottom: 5 }
 const inp = { width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 9, border: '1.5px solid var(--border)',
@@ -49,7 +55,7 @@ const RouteVersions = () => {
   // Cursos base que el tutor da en alguno de sus colegios (admin: todos).
   const baseCourses = React.useMemo(() => {
     const allowed = new Set(userCourses.filter(uc => uc.user_id === user?.id && uc.is_active).map(uc => uc.course_id))
-    return courses.filter(c => !c.parent_course_id && c.is_active && (isAdmin || (
+    return courses.filter(c => !c.parent_course_id && c.is_active && ROUTE_VERSION_THEMES.has(c.theme) && (isAdmin || (
       institutionCourses.some(r => r.course_id === c.id && r.is_active && myInstIds.has(r.institution_id))
       && (allowed.size === 0 || allowed.has(c.id)))))
   }, [courses, institutionCourses, userCourses, myInstIds, isAdmin, user])
@@ -188,7 +194,7 @@ const RouteVersions = () => {
   }
 
   if (!baseCourses.length) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No tienes cursos asignados en tus colegios.</div>
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>No tienes asignado ninguno de los cursos con versiones de ruta (Detectives, Sala de Escape, Laboratorios, Viajeros del Tiempo).</div>
   }
 
   return (
