@@ -6,7 +6,7 @@ import { LessonBody } from './lesson.jsx'
 import { ActivityPicker } from '../components/ActivityCard.jsx'
 import { resolveActivity, ACTIVITY_BANKS } from '../lib/activityBank.js'
 import { isQuestionRound, BANK_AREAS, ROUND_LABELS } from '../lib/questionBankMeta.js'
-import { LivePassage, hintDelayMs } from '../components/LiveQuestionView.jsx'
+import { LivePassage, hintDelayMs, OptionImage, optionsLayout } from '../components/LiveQuestionView.jsx'
 import {
   createLiveSession, liveGotoModule, liveCompleteModuleForParticipants,
   liveSetPhase, liveGoto, liveEnd, saveLiveClosingNotes, saveLiveActivityChoice,
@@ -418,6 +418,7 @@ const Control = ({ session: initial, moduleList, onExit }) => {
   const localQ = currentModule?.challenge_data?.questions?.[idx]
   const snapQ  = (session.questions || [])[idx] || {}
   const options = localQ?.options || snapQ.options || []
+  const optionImages = localQ?.optionImages || snapQ.optionImages
   const correct = isPoll ? null : (localQ ? localQ.correct : session.current_reveal?.correct)
   const hasExplanation = !isPoll && !!(localQ?.explanation || localQ?.explanationImage || session.current_reveal?.explanation)
 
@@ -593,7 +594,7 @@ const Control = ({ session: initial, moduleList, onExit }) => {
               <HostHint hint={localQ?.hint || snapQ.hint} startedAt={session.question_started_at}
                 limit={snapQ.time_limit_s || Number(localQ?.timeLimit) || 20} open />
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={optionsLayout(optionImages, 10)}>
               {options.map((opt, i) => {
                 const isCorrect = correct === i
                 const n = counts[i] || 0
@@ -605,7 +606,10 @@ const Control = ({ session: initial, moduleList, onExit }) => {
                     background: 'var(--white)', display: 'flex', alignItems: 'center', gap: 12 }}>
                     {reveal && <div style={{ position: 'absolute', inset: 0, width: pct + '%', background: isCorrect ? '#DCFCE7' : 'var(--bg-alt)', transition: 'width .4s', zIndex: 0 }} />}
                     <span style={{ position: 'relative', zIndex: 1, width: 26, height: 26, borderRadius: 7, background: OPT_COLORS[i % OPT_COLORS.length], color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{String.fromCharCode(65 + i)}</span>
-                    <span style={{ position: 'relative', zIndex: 1, flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--dark)' }}><RichText>{opt}</RichText>{reveal && isCorrect && ' ✓'}</span>
+                    <span style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: 'var(--dark)' }}>
+                      <OptionImage src={optionImages?.[i]} />
+                      <RichText>{opt}</RichText>{reveal && isCorrect && ' ✓'}
+                    </span>
                     {reveal && <span style={{ position: 'relative', zIndex: 1, fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>{n} · {pct}%</span>}
                   </div>
                 )

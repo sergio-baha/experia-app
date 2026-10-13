@@ -3,7 +3,7 @@ Uso: python curate.py <carpeta_de_trabajo> <repo>
 Escribe <repo>/src/lib/questionBank.json y copia las imágenes a <repo>/public/preguntas/.
 """
 import json, os, re, sys, random
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 S, REPO = sys.argv[1], sys.argv[2]
 d = json.load(open(os.path.join(S, 'draft.json'), encoding='utf-8'))
@@ -18,11 +18,39 @@ AREAS = {
 }
 
 # ── Imágenes: (carpeta docx, imagen) → nombre publicado ─────────────────────
+# Matemáticas: documento de 50 preguntas (oct 2026). Las imágenes del banco
+# anterior (visitantes-museo, cuadrado-inscrito…) siguen en public/ porque
+# algún módulo editado a mano podría aún usarlas.
 IMGS = {
-    ('mat', 'image1'): 'matematicas/visitantes-museo',
-    ('mat', 'image2'): 'matematicas/cuadrado-inscrito',
-    ('mat', 'image3'): 'matematicas/libros-vendidos',
-    ('mat', 'image4'): 'matematicas/linea-quebrada',
+    ('mat', 'image1'): 'matematicas/promedios-cursos',
+    ('mat', 'image2'): 'matematicas/franjas-museo',
+    ('mat', 'image3'): 'matematicas/capacitacion-informatica',
+    ('mat', 'image4'): 'matematicas/portalapices',
+    ('mat', 'image5'): 'matematicas/transporte-frutas',
+    ('mat', 'image10'): 'matematicas/sombras-postes',
+    ('mat', 'image11'): 'matematicas/caja-aristas',
+    ('mat', 'image12'): 'matematicas/faros-barco',
+    ('mat', 'image13'): 'matematicas/publicidad-ganancias',
+    ('mat', 'image14'): 'matematicas/triangulo-corte',
+    ('mat', 'image15'): 'matematicas/cartabon',
+    ('mat', 'image19'): 'matematicas/transporte-intermunicipal',
+    ('mat', 'image20'): 'matematicas/cursos-undecimo',
+    ('mat', 'image21'): 'matematicas/escalera-muro',
+    ('mat', 'image22'): 'matematicas/baraja-poquer',
+    ('mat', 'image23'): 'matematicas/procedimientos-ecuacion',
+    ('mat', 'image28'): 'matematicas/pedidos-pizzeria',
+    ('mat', 'image39'): 'matematicas/empaques-volumen',
+    ('mat', 'image29'): 'matematicas/cancha-futbol',
+    ('mat', 'image34'): 'matematicas/funcion-5-sobre-x',
+    # Imágenes de opción (OPTION_IMAGES, más abajo)
+    ('mat', 'image6'): 'matematicas/costos-ciudades-a', ('mat', 'image7'): 'matematicas/costos-ciudades-b',
+    ('mat', 'image8'): 'matematicas/costos-ciudades-c', ('mat', 'image9'): 'matematicas/costos-ciudades-d',
+    ('mat', 'image24'): 'matematicas/tabla-transporte-a', ('mat', 'image25'): 'matematicas/tabla-transporte-b',
+    ('mat', 'image26'): 'matematicas/tabla-transporte-c', ('mat', 'image27'): 'matematicas/tabla-transporte-d',
+    ('mat', 'image30'): 'matematicas/maqueta-cancha-a', ('mat', 'image31'): 'matematicas/maqueta-cancha-b',
+    ('mat', 'image32'): 'matematicas/maqueta-cancha-c', ('mat', 'image33'): 'matematicas/maqueta-cancha-d',
+    ('mat', 'image35'): 'matematicas/grafica-area-a', ('mat', 'image36'): 'matematicas/grafica-area-b',
+    ('mat', 'image37'): 'matematicas/grafica-area-c', ('mat', 'image38'): 'matematicas/grafica-area-d',
     ('cie', 'image1'): 'ciencias/glucosa-en-sangre',
     ('cie', 'image2'): 'ciencias/solubilidad-sales',
     ('cie', 'image3'): 'ciencias/ley-de-hooke',
@@ -53,24 +81,92 @@ def pub(folder, img):
     return '/preguntas/' + IMGS[key] + '.jpg'
 
 
+def load_rgb(folder, img):
+    im = Image.open(os.path.join(S, 'img', folder, img + '.png'))
+    if im.mode in ('RGBA', 'LA', 'P'):
+        im = im.convert('RGBA')
+        bg = Image.new('RGB', im.size, (255, 255, 255))
+        bg.paste(im, mask=im.split()[-1])
+        return bg
+    return im.convert('RGB')
+
+
+def save_jpg(im, name):
+    dst = os.path.join(REPO, 'public', 'preguntas', name + '.jpg')
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    if im.width > 1400:
+        im = im.resize((1400, round(im.height * 1400 / im.width)), Image.LANCZOS)
+    im.save(dst, 'JPEG', quality=84, optimize=True, progressive=True)
+
+
 def export_images():
     for (folder, img), name in IMGS.items():
-        if (folder, img) not in used_imgs:
-            continue
-        src = os.path.join(S, 'img', folder, img + '.png')
-        dst = os.path.join(REPO, 'public', 'preguntas', name + '.jpg')
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        im = Image.open(src)
-        if im.mode in ('RGBA', 'LA', 'P'):
-            im = im.convert('RGBA')
-            bg = Image.new('RGB', im.size, (255, 255, 255))
-            bg.paste(im, mask=im.split()[-1])
-            im = bg
-        else:
-            im = im.convert('RGB')
-        if im.width > 1400:
-            im = im.resize((1400, round(im.height * 1400 / im.width)), Image.LANCZOS)
-        im.save(dst, 'JPEG', quality=84, optimize=True, progressive=True)
+        if (folder, img) in used_imgs:
+            save_jpg(load_rgb(folder, img), name)
+
+
+# ── Opciones con imagen ──────────────────────────────────────────────────────
+# Preguntas cuyas opciones son gráficas, tablas o diseños: cada opción lleva su
+# imagen (optionImages, alineado por índice con options) y el texto va vacío.
+OPTION_IMAGES = {
+    'mate-12': ['image6', 'image7', 'image8', 'image9'],
+    'mate-33': ['image24', 'image25', 'image26', 'image27'],
+    'mate-42': ['image30', 'image31', 'image32', 'image33'],
+    'mate-43': ['image35', 'image36', 'image37', 'image38'],
+}
+
+# ── Varias figuras del enunciado → una sola imagen ───────────────────────────
+# Una pregunta lleva UNA imagen de enunciado: la 24 trae tres figuras y se
+# publican en fila. (compose también arma rejillas A–D, hoy sin uso: las
+# opciones gráficas van en OPTION_IMAGES.)
+COMPOSITES = {
+    'mate-24': ('matematicas/figuras-eloisa', ['image16', 'image17', 'image18'], []),
+}
+
+
+def _font(size):
+    for f in ('arialbd.ttf', 'DejaVuSans-Bold.ttf'):
+        try:
+            return ImageFont.truetype(f, size)
+        except OSError:
+            pass
+    return ImageFont.load_default(size=size)
+
+
+def compose(qid):
+    name, top, opts = COMPOSITES[qid]
+    pad, gap = 24, 28
+    # Figuras del enunciado a la misma altura (vienen a escalas muy distintas).
+    tops = [load_rgb('mat', i) for i in top]
+    th = 260 if len(tops) > 1 else 2 * max((t.height for t in tops), default=0)
+    tops = [t.resize((round(t.width * th / t.height), th), Image.LANCZOS) for t in tops]
+    cells = [load_rgb('mat', i) for i in opts]
+    cw = max((c.width for c in cells), default=0) * 2
+    cells = [c.resize((cw, round(c.height * cw / c.width)), Image.LANCZOS) for c in cells]
+    ch = max((c.height for c in cells), default=0)
+    lab = 56
+    grid_w = 2 * cw + gap if cells else 0
+    grid_h = 2 * (ch + lab) + gap if cells else 0
+    top_w = sum(t.width for t in tops) + gap * max(0, len(tops) - 1)
+    W = max(top_w, grid_w) + 2 * pad
+    H = pad + (th + gap if tops else 0) + grid_h + pad
+    out = Image.new('RGB', (W, H), 'white')
+    d = ImageDraw.Draw(out)
+    x, y = (W - top_w) // 2, pad
+    for t in tops:
+        out.paste(t, (x, y)); x += t.width + gap
+    if tops and cells:
+        y += th + gap // 2
+        d.line([(pad, y), (W - pad, y)], fill=(200, 200, 200), width=2)
+        y += gap // 2
+    gx = (W - grid_w) // 2
+    f = _font(40)
+    for k, c in enumerate(cells):
+        cx, cy = gx + (k % 2) * (cw + gap), y + (k // 2) * (ch + lab + gap)
+        d.text((cx, cy), 'ABCD'[k], font=f, fill=(30, 30, 30))
+        out.paste(c, (cx, cy + lab))
+    save_jpg(out, name)
+    return '/preguntas/' + name + '.jpg'
 
 
 # ── Química/física: fórmulas que en el Word venían como texto plano ─────────
@@ -103,26 +199,59 @@ def tidy(t):
 
 # ── Pistas: las dice el tutor del curso durante la pregunta en vivo ─────────
 HINTS = {
-    'mat-01': 'Calcula el área total y su 40 %: ¿el resultado contradice lo que dice el agricultor?',
-    'mat-02': 'El radio va al cuadrado en la fórmula: si se duplica, ¿por cuánto se multiplica r²·h?',
-    'mat-03': 'Pregúntate qué parte de la tarifa cambia con los kilómetros y cuál se cobra una sola vez.',
-    'mat-04': 'Recuerda que 1 km = 100.000 cm. Convierte y mira cuál de los dos resultados tiene sentido.',
-    'mat-05': 'Lee en la gráfica el valor de febrero y el de marzo (en miles) y calcula la mitad del primero.',
-    'mat-06': 'Calcula P(8) y P(5) por separado… ¿qué le pasa al bono de 200 cuando restas?',
-    'mat-07': 'Seno = cateto opuesto ÷ hipotenusa. Si ese cociente es 1/2, ¿cuántas veces cabe el cateto en la hipotenusa?',
-    'mat-08': 'Al sumar los dos clubes, quienes están en ambos quedan contados dos veces.',
-    'mat-09': 'Buscas el número más grande que divida exactamente a 120 y a 80.',
-    'mat-10': 'Suma los cinco precios y reparte en partes iguales entre los 5 amigos.',
-    'mat-11': 'Revisa si el aumento de un mes a otro es siempre el mismo y prueba la fórmula con m = 1 y m = 2.',
-    'mat-12': 'Después de sacar la primera canica, ¿cuántas quedan en la bolsa? Multiplica las dos probabilidades.',
-    'mat-13': 'Si ambos catetos crecen en la misma proporción, la hipotenusa crece en esa misma proporción.',
-    'mat-14': 'El segundo descuento se calcula sobre el precio ya rebajado, no sobre el original.',
-    'mat-15': 'Los puestos son distintos, así que el orden importa: ¿cuántos pueden ser gerente, luego subgerente, luego asistente?',
-    'mat-16': 'Multiplica cada nota por su porcentaje: el 70 % va con el examen final.',
-    'mat-17': 'Mira la figura: los cuatro triángulos blancos de las esquinas, ¿qué parte del cuadrado grande ocupan juntos?',
-    'mat-18': 'Lee el valor exacto de cada barra y verifica afirmación por afirmación: buscas la que NO se cumple.',
-    'mat-19': 'Piensa qué operación no te acerca a despejar la x, aunque se haga a ambos lados.',
-    'mat-20': 'Mide cada tramo por separado: ¿desde qué altura empieza el tramo que baja?',
+    # Matemáticas (documento de 50 preguntas, oct 2026). Ids "mate-NN" = número
+    # de la pregunta en el Word; distintos de los "mat-NN" del banco anterior
+    # para que el análisis de ítems no mezcle respuestas de preguntas distintas.
+    'mate-01': 'Como todos los cursos tienen el mismo número de estudiantes, compara la SUMA de los promedios de cada año.',
+    'mate-02': 'Si la tasa de cambio no se mueve, ¿pasar la inversión a pesos cambia el porcentaje de ganancia?',
+    'mate-03': 'Las franjas no tienen que llenarse por completo: ¿qué pasa si cambias la franja más cara por otra?',
+    'mate-04': 'Calcula cuánto cuesta un curso del módulo I y cuántos cursos se pagan con $ 4.200.000.',
+    'mate-05': '50 personas no caben en un solo curso: ¿cuántos cursos se necesitan y cuánto vale cada uno?',
+    'mate-06': '40 funcionarios necesitan 2 cursos. ¿Cuánto costó entonces cada curso?',
+    'mate-07': 'Si los lados se multiplican por 3/4, ¿por cuánto se multiplica el área de un cuadrado?',
+    'mate-08': 'La temperatura BAJA al subir: el término de la altitud debe restar. Prueba cada expresión con 1.000 m.',
+    'mate-09': 'Calcula en cada ciudad lo que se recibe y lo que se gasta: 6 toneladas necesitan 2 camiones y 4 trabajadores.',
+    'mate-10': 'Sigue los pasos: 15 toneladas, $ 600.000 de diferencia por tonelada… y son 3 camiones con 2 trabajadores cada uno.',
+    'mate-11': 'El bono solo cuenta grupos completos de 5 toneladas: de 47, ¿cuántas entran?',
+    'mate-12': '7 toneladas también necesitan 2 camiones. Calcula transporte y trabajadores en cada ciudad.',
+    'mate-13': 'Cada camión lleva máximo 5 toneladas. ¿Qué puedes deducir de 150 toneladas?',
+    'mate-14': 'Aumentar un lado en 100 % es multiplicarlo por 2. ¿Qué le pasa a base × altura?',
+    'mate-15': 'Los rayos del sol llegan paralelos a los dos postes.',
+    'mate-16': 'Un promedio no dice cuántas personas están por encima o por debajo de 1,80 m.',
+    'mate-17': 'Cuenta cuántas aristas tiene la caja: ¿cuántas miden l, cuántas a y cuántas h?',
+    'mate-18': 'Usa el triángulo de la derecha: conoces el lado que mide 1 y sus ángulos de 60° y 75°. Ley del seno.',
+    'mate-19': 'Si P anota x puntos más, Q anota (3/2)x. Escribe el marcador de cada robot e iguálalos.',
+    'mate-20': 'Prueba cada función con los tres años de la tabla: la correcta debe cumplirse en todos.',
+    'mate-21': 'Si hay 3 veces más sillas que mesas, ¿cuál se multiplica por 3: M o S?',
+    'mate-22': 'Despeja h: 120 × 0,71. Luego divide entre 2.',
+    'mate-23': 'Si la hipotenusa es el doble del cateto menor, el triángulo es de 30°, 60° y 90°. Usa tan 60°.',
+    'mate-24': 'Haz como Eloísa: mueve los triángulos que rodean el cuadrado. ¿Cuántos cuadrados iguales al sombreado se forman?',
+    'mate-25': '¿Cuántos dígitos puedes poner en la primera posición? ¿Y en la segunda, si no se pueden repetir?',
+    'mate-26': 'Suma los porcentajes de bus, microbús y buseta, y compáralo con el 50 %.',
+    'mate-27': '¿Hay números entre 10,49 y 10,50? Piensa en milésimas.',
+    'mate-28': 'Probabilidad = casos favorables ÷ casos posibles. ¿De dónde sale 45/75?',
+    'mate-29': 'Coseno = cateto adyacente ÷ hipotenusa. ¿Qué cateto toca el ángulo θ?',
+    'mate-30': 'Probabilidad cero significa que NO existe ninguna carta con las dos características.',
+    'mate-31': 'Revisa cada procedimiento: ¿alguien cambió un producto por una suma?',
+    'mate-32': 'Si el eje y parte la figura en dos mitades iguales, cada vértice tiene su reflejo: cambia el signo de x.',
+    'mate-33': 'De 100 personas, ¿cuántas son mujeres y cuántas de ellas van en bus? Haz lo mismo con los hombres.',
+    'mate-34': 'Aumentar 20 dB es aplicar DOS veces el aumento de 10 dB.',
+    'mate-35': 'Los pasos 1 y 2 calculan el 90 % del precio original. ¿Qué deberían hacer los pasos 3 y 4?',
+    'mate-36': 'Cuenta cuántas bolas hay de cada color.',
+    'mate-37': 'Tres puntos forman un triángulo, o un segmento si están alineados. ¿Qué segmento podría ser?',
+    'mate-38': 'Nadie eligió las dos bebidas. ¿Cuántos clientes NO pidieron bebida?',
+    'mate-39': 'Calcula cada caso: tres dígitos 10 × 10 × 10; distintos 10 × 9 × 8; hay 26 mayúsculas y 26 minúsculas.',
+    'mate-40': 'Para que k + 1/j sea menor que k + 1/11, ¿cómo tiene que ser j? ¿Cuántos enteros cumplen eso?',
+    'mate-41': 'En todo triángulo, la suma de dos lados debe ser mayor que el tercero.',
+    'mate-42': 'Divide 100 m y 60 m entre 100 y pasa el resultado a centímetros.',
+    'mate-43': 'Simplifica: x · (5/x) = ?',
+    'mate-44': 'Primero el ángulo: 2π ÷ 10 con π = 3. Luego reemplaza en S = r²θ/2 con r = 3.',
+    'mate-45': 'El orden no importa: elige 2 de 5 en décimo, 3 de 4 en undécimo, y multiplica.',
+    'mate-46': 'Ganar la consola es ganar el juego 1 Y el juego 2. ¿Cuál es el evento contrario?',
+    'mate-47': 'Si 10³ = I / I₀, despeja I.',
+    'mate-48': 'Después del 2, ¿cuánto deben sumar las otras dos balotas en cada caso? Cuenta las formas.',
+    'mate-49': 'Valorizarse un 5 % cada año es multiplicar por 1,05 cada año.',
+    'mate-50': 'Calcula los volúmenes con r = L = 3/2 y h = 2: cilindro πr²h, caja L²h, esfera (4/3)πr³.',
 
     'bio-01': 'Compara los 2 mg/L con el límite de 4 mg/L que señalan los investigadores.',
     'bio-02': 'Para poner a prueba una hipótesis necesitas dos grupos que solo se diferencien en lo que quieres probar.',
@@ -335,11 +464,58 @@ EXPLAIN = {
     'bio-02': 'Un experimento controlado compara dos grupos que solo difieren en la variable de la hipótesis (raíces conectadas vs. separadas por una barrera). Las otras opciones no ponen a prueba el intercambio de nutrientes.',
     'bio-03': 'En agua destilada (hipotónica) entra agua y la célula se hincha; al 0,9 % (isotónica) no hay flujo neto; al 10 % (hipertónica) sale agua y la célula se encoge.',
     'bio-04': 'La bacteria C sobrevive un 85 % con el antibiótico Z, frente a 5 % con X y 40 % con Y: es su mayor resistencia.',
+    # Matemáticas: el Word solo traía la clave.
+    'mate-01': 'Con cursos del mismo tamaño, el promedio total de cada año se compara sumando los promedios: año anterior 63 + 61 + 50 + 53 = 227; año actual 65 + 45 + 53 + 54 = 217. El promedio total bajó, aunque tres de los cuatro cursos subieron: la caída del curso II (16 puntos) pesa más que esas subidas.',
+    'mate-02': 'Pasar de dólares a pesos es multiplicar por 4.000 tanto la inversión como la ganancia. Como la tasa es constante, la proporción entre ganancia e inversión no cambia: en pesos también es del 3 %. A es incorrecta porque la conclusión depende justamente de que la tasa no varíe.',
+    'mate-03': 'Con las franjas 1, 3 y 4: 50 × 35.000 + 30 × 50.000 + 60 × 45.000 = $ 5.950.000. Con las franjas 1, 2 y 4 (caben 150) se llenan primero las más baratas: 50 × 35.000 + 40 × 40.000 + 50 × 45.000 = $ 5.600.000, que es menos. La franja 3 es la más cara por estudiante.',
+    'mate-04': 'Un curso del módulo I cuesta 40 h × $ 35.000 = $ 1.400.000. Con $ 4.200.000 se pagan 3 cursos, cada uno de 20 a 30 personas: la dependencia tiene entre 60 y 90 trabajadores.',
+    'mate-05': 'Un curso del módulo II cuesta 30 h × $ 30.000 = $ 900.000. Como cada curso admite máximo 30 personas, los 50 trabajadores necesitan 2 cursos: $ 1.800.000, que entre 50 da $ 36.000 por persona.',
+    'mate-06': 'Con máximo 30 personas por curso, 40 funcionarios necesitan 2 cursos: cada uno costó $ 900.000 ÷ 2 = $ 450.000. Solo el módulo IV cuesta eso: 10 h × $ 45.000. (Un curso del módulo II cuesta $ 900.000, pero habría que pagar dos.)',
+    'mate-07': 'Base y boca son cuadradas, así que la razón entre sus lados es la de los perímetros, 3/4. El área depende del lado al cuadrado: la razón entre las áreas es (3/4)² = 9/16, no 3/4.',
+    'mate-08': 'La temperatura baja 1 °C por cada 100 m: el término es −Altitud/100. Para que a 1.000 m dé 20 °C hay que sumar 30 (−10 + 30 = 20). A 4.000 m: −40 + 30 = −10 °C. B y D multiplican la altitud por 100 en lugar de dividirla.',
+    'mate-09': '6 toneladas necesitan 2 camiones y 4 trabajadores. En W: ventas 6 × 1.300.000 = 7.800.000 y gastos 2 × 150.000 + 4 × 180.000 = 1.020.000. En Z: ventas 8.100.000 y gastos 2 × 180.000 + 4 × 200.000 = 1.160.000. En Z se vende 300.000 más y se gasta solo 140.000 más: por eso es más rentable. A no basta: también hay que mirar los gastos.',
+    'mate-10': 'Paso 1: 15 t. Paso 2: 1.000.000 − 400.000 = 600.000. Paso 3: 15 × 600.000 = 9.000.000. Paso 4: transporte 3 × 150.000 = 450.000 más trabajadores 6 × 180.000 = 1.080.000, en total 1.530.000. Paso 5: 9.000.000 − 1.530.000 = $ 7.470.000.',
+    'mate-11': '47 ÷ 5 deja residuo 2, así que cuentan 45 toneladas. 45 × 1.300.000 = 58.500.000, y el 0,3 % de eso es 175.500: unos 175.000 pesos para cada empleado.',
+    'mate-12': 'Tanto 7 como 10 toneladas necesitan 2 camiones y 4 trabajadores. En W: transporte 2 × 150.000 = 300.000 y trabajadores 4 × 180.000 = 720.000. En Z: transporte 2 × 180.000 = 360.000 y trabajadores 4 × 200.000 = 800.000. Es la gráfica B.',
+    'mate-13': 'Cada camión lleva máximo 5 toneladas: 150 toneladas requieren al menos 150 ÷ 5 = 30 viajes. Lo demás no se puede saber, porque no se conoce a qué ciudad se vendió cada carga ni cuántos viajes hizo cada trabajador.',
+    'mate-14': 'Aumentar un lado en 100 % es duplicarlo. Como el área es base × altura y el otro lado no cambia, el área también se duplica.',
+    'mate-15': 'Los postes son paralelos y los ilumina la misma fuente, con rayos paralelos: sus sombras también son paralelas y forman el mismo ángulo con la acera, β = 30°. La altura del poste cambia el largo de la sombra, no su dirección.',
+    'mate-16': 'El promedio no informa cómo se reparten las estaturas: con un promedio de 1,70 m puede haber varias personas de más de 1,80 m. Que el promedio sea menor que 1,80 m no implica que las piscinas tengan cantidades distintas, y subirlo a 1,80 m tampoco garantiza que se igualen.',
+    'mate-17': 'Una caja tiene 12 aristas: 4 de largo l, 4 de ancho a y 4 de alto h. La longitud total es 4l + 4a + 4h. (lah es el volumen.)',
+    'mate-18': 'En el triángulo formado por el faro superior, el faro de la derecha y el barco, el lado que mide 1 está frente al ángulo de 75° (en el barco) y x está frente al de 60°. Por la ley del seno: x / sen(60°) = 1 / sen(75°), así que x = sen(60°) / sen(75°).',
+    'mate-19': 'Si P anota x puntos, Q anota 3/2 de x (3 por cada 2). P tendrá 7 + x y Q tendrá 2 + (3/2)x. Se igualan cuando 7 + x = (3/2)x + 2: con x = 10 quedan 17 a 17.',
+    'mate-20': 'G(p) = 30p + 2.000 cumple los tres años: 30 × 200 + 2.000 = 8.000; 30 × 280 + 2.000 = 10.400; 30 × 250 + 2.000 = 9.500. G(p) = 40p solo cumple el primero y G(p) = 40p − 800, ninguno.',
+    'mate-21': 'La ecuación 1 está bien: precio por cantidad de cada artículo. Pero si se vendieron 3 veces más sillas que mesas, la relación es S = 3M. La ecuación M = 3S dice lo contrario: 3 veces más mesas que sillas.',
+    'mate-22': 'h = 120 × sen(45°) ≈ 120 × 0,71 = 85,2 cm. La mitad es 85,2 ÷ 2 ≈ 42,6 cm: el corte se hizo a unos 42 cm. 85 cm es la altura completa.',
+    'mate-23': 'Si la hipotenusa es el doble del cateto menor, el ángulo opuesto a ese cateto es de 30° (sen 30° = 1/2): el cartabón es un triángulo de 30°, 60° y 90°. Entonces tan 60° = cateto mayor ÷ cateto menor, √3 = 32 / c, y c = 32/√3 cm.',
+    'mate-24': 'Cada uno de los cuatro triángulos que rodean el cuadrado sombreado se puede trasladar para formar, con él, una cruz de 5 cuadrados iguales al sombreado. La cruz tiene la misma área que el cuadrado grande (1 dm²), así que el sombreado mide 1/5 dm².',
+    'mate-25': 'Son ordenaciones de 4 dígitos distintos: 4 × 3 × 2 × 1 = 24 extensiones.',
+    'mate-26': 'Buses (24 %) + microbuses (23 %) + busetas (18 %) = 65 %: son más de la mitad. Automóviles (18 %), camionetas (9 %) y camperos (7 %) suman solo 34 %.',
+    'mate-27': 'Entre 10,49 y 10,50 hay infinitos números, por ejemplo 10,497. Ese tiempo es menor que 10,50 (rompe el récord olímpico) y mayor que 10,49 (no rompe el mundial).',
+    'mate-28': 'Hay 45 mujeres entre 75 estudiantes: 45/75 = 3/5. El numerador es el total de mujeres y el denominador, el total de estudiantes de grado undécimo.',
+    'mate-29': 'En la figura 2 la escalera (13 m) es la hipotenusa, el muro (12 m) es el cateto opuesto a θ y la distancia en el suelo (5 m) es el adyacente: cos θ = 5/13.',
+    'mate-30': 'Las picas son negras: ninguna carta es roja y de picas, así que la probabilidad es 0. Las otras parejas sí existen (el 2 de picas es negro y par; el K de diamantes es rojo y de diamantes).',
+    'mate-31': 'La ecuación tiene dos soluciones, x = 3 y x = −3. María desarrolla los productos y llega a x² = 9; Nelson saca factor común (x + 3) y llega a (x + 3)(x − 3) = 0: los dos son correctos. Óscar convierte los productos en sumas, lo cual no es válido.',
+    'mate-32': 'Por la simetría respecto al eje y, el reflejo de (x, y) es (−x, y): (−4, 2) → (4, 2) y (−2, 8) → (2, 8).',
+    'mate-33': 'Hay 60 mujeres y 40 hombres. Mujeres en bus: 20 % de 60 = 12, caminando 48. Hombres caminando: 40 % de 40 = 16, en bus 24. Es la tabla D.',
+    'mate-34': 'Cada aumento de 10 dB multiplica la intensidad por 10. Aumentar 20 dB es hacerlo dos veces: × 10 × 10 = × 100, no × 20.',
+    'mate-35': 'Pasos 1 y 2: 50 × 9 ÷ 10 = 45, el precio con el primer descuento. Los pasos 3 y 4 deben sacar el 90 % de 45 (multiplicar por 90 y dividir entre 100 = $ 40,50). El error está en el paso 3, que multiplica por 10.',
+    'mate-36': 'Hay 18 bolas: P(blanca) = 12/18 = 2/3, mientras que P(roja) = P(negra) = 3/18 = 1/6. Hay más blancas, así que los colores no tienen la misma probabilidad.',
+    'mate-37': 'OP y OP′ son radios, así que al unir los tres puntos sale un triángulo isósceles (equilátero si PP′ también mide un radio) o, si P y P′ son opuestos, un diámetro. Nunca queda un solo radio: siempre intervienen los tres puntos.',
+    'mate-38': 'Nadie eligió las dos bebidas: 20 + 40 = 60 clientes pidieron bebida y 110 − 60 = 50 no la pidieron; esos 50 solo eligieron pizza. En cambio, no se sabe cuántos de los que pidieron bebida también pidieron pizza, por eso A, B y D no se pueden calcular.',
+    'mate-39': 'R1: 10³ = 1.000. R2: 10 × 9 × 8 = 720. R3: 26 × 26 × 10 = 6.760. R4: 52 × 10 × 10 = 5.200. De menor a mayor: R2, R1, R4, R3.',
+    'mate-40': 'k + 1/j es menor que k + 1/11 cuando j es mayor que 11. Hay infinitos enteros mayores que 11 (12, 13, 14…), así que se pueden construir infinitos racionales.',
+    'mate-41': 'En todo triángulo cada lado es menor que la suma de los otros dos. Con lados 7, 7 y 18: 7 + 7 = 14 < 18, así que ese triángulo no existe. Los demás requerimientos sí se pueden cumplir (la suma de 180° se cumple siempre).',
+    'mate-42': '100 m ÷ 100 = 1 m = 100 cm = 1 × 10² cm, y 60 m ÷ 100 = 0,6 m = 60 cm = 6 × 10¹ cm. Es el diseño D. El C tiene los mismos números, pero en metros: sería la cancha de tamaño real.',
+    'mate-43': 'A(x) = x · f(x) = x · 5/x = 5 para todo x > 0: todos esos rectángulos tienen área 5. La gráfica es una recta horizontal en y = 5, sin incluir x = 0 (círculo vacío).',
+    'mate-44': 'θ = 2π / 10 = 6 / 10 = 0,6. S = 3² × 0,6 / 2 = 9 × 0,3 = 2,7 m².',
+    'mate-45': 'En décimo hay C(5, 2) = 10 formas de elegir a 2; en undécimo, C(4, 3) = 4 formas de elegir a 3. Como se eligen las dos cosas, se multiplica: 10 × 4 = 40 grupos.',
+    'mate-46': 'Los juegos son independientes: P(ganar los dos) = 1/2 × 1/6 = 1/12 (procedimiento 2). Lo contrario de ganar los dos es perder en al menos uno, así que también sirve 1 − P(perder en al menos uno) (procedimiento 3). Sumar no sirve, y "perder exactamente en uno" deja por fuera el caso de perder los dos.',
+    'mate-47': 'De 10³ = I / I₀ se obtiene I = 1.000 · I₀: la intensidad es mil veces la mínima que percibe el oído.',
+    'mate-48': 'Con un 2 ya fuera, para llegar a 10 las otras dos balotas deben sumar 8: (2,6), (3,5), (4,4), (5,3), (6,2), 5 formas. Para llegar a 7 deben sumar 5: (1,4), (2,3), (3,2), (4,1), 4 formas. El estudiante del 10 tiene una posibilidad más.',
+    'mate-49': 'Cada año el costo se multiplica por (1 + 5/100) = 1,05; tras n años es 800.000 × (1 + 5/100)ⁿ. A suma solo 5 pesos por año y C multiplica por el 5 %, lo que haría bajar el precio.',
+    'mate-50': 'Cilindro: π(3/2)² × 2 = 4,5π ≈ 14,1. Caja: (3/2)² × 2 = 4,5. Esfera: (4/3)π(3/2)³ = 4,5π. El cilindro es mayor que la caja y la esfera tiene el mismo volumen que el cilindro.',
     'bio-05': 'La orquídea imita a la hembra del insecto y así consigue que el macho la polinice, pero el insecto no recibe nada a cambio (ni néctar ni pareja): es un mimetismo engañoso. No es mutualismo, porque solo una especie se beneficia; tampoco parasitismo, porque la orquídea no se alimenta del insecto, ni competencia, porque no se disputan ningún recurso.',
-    # Corregidas (oct 2026): en el Word la clave o los datos no cuadraban.
-    'mat-01': 'El área del terreno es 20 × 30 = 600 m² y el 40 % de 600 es 240 m². Como 240 < 600, el invernadero cabe y la afirmación es correcta. B calcula mal el porcentaje, C toma el 40 % de un solo lado (llega a 240 por casualidad, con un razonamiento incorrecto) y D suma porcentajes de los lados, que no es como se calcula un área.',
-    'mat-02': 'El cono grande tiene el doble de diámetro (6 vs 3 cm) y de altura (12 vs 6 cm) que el pequeño. Si el radio se duplica, r² se multiplica por 4, y la altura por 2: el volumen se multiplica por 2 × 2² = 8, no por 2. Por eso la afirmación es incorrecta.',
-    'mat-20': 'La línea tiene dos tramos: uno horizontal de 5 cm y uno vertical que baja desde 2 cm por debajo del borde superior hasta el borde inferior, es decir 6 − 2 = 4 cm. En total: 5 + 4 = 9 cm. 14 cm (8 + 6) solo sería cierto si la línea recorriera el ancho y el alto completos del rectángulo.',
     'bio-06': 'La fotosíntesis depende de la luz: más horas de luz solar directa permiten más fotosíntesis. Ni el agua ni el abono reemplazan la luz.',
     'bio-07': 'Las serpientes se comen a las ranas: si las serpientes disminuyen, las ranas tienen menos depredadores y su población aumenta.',
     'bio-08': 'El único factor distinto fue la presencia de bacterias fijadoras de nitrógeno, que aportan nitrógeno aprovechable: benefician el crecimiento.',
@@ -369,8 +545,8 @@ EXPLAIN = {
 
 # Preguntas que el equipo académico debe revisar antes de usar: quedan en el
 # banco con aviso y FUERA de las rondas predeterminadas. Vacío desde oct 2026:
-# las cinco que había (mat-01, mat-02, mat-20, bio-05, qui-10) se corrigieron
-# abajo en FIX — ver el comentario de cada una.
+# las cinco que había (bio-05, qui-10 y tres del banco anterior de
+# Matemáticas) se corrigieron abajo en FIX — ver el comentario de cada una.
 REVIEW = {}
 
 
@@ -382,22 +558,43 @@ def _stem_replace(q, pairs):
 
 
 FIX = {
+    # ── Matemáticas (documento de 50 preguntas, oct 2026) ───────────────────
+    # mate-08: en el Word las opciones A y C perdieron el "= −" (está así en el
+    # XML del documento, no es un error de lectura). Se restituye: la clave C
+    # solo funciona con la altitud restando.
+    'mate-08': lambda q: {**q, 'options': [r'\( \text{Temperatura} = -\dfrac{\text{Altitud}}{100} + 10 \)',
+                                           r'\( \text{Temperatura} = -\text{Altitud} \times 100 + 300 \)',
+                                           r'\( \text{Temperatura} = -\dfrac{\text{Altitud}}{100} + 30 \)',
+                                           r'\( \text{Temperatura} = -\text{Altitud} \times 100 + 10 \)']},
+    # mate-47: el Word dice 10³ = 1/1₀ en lugar de 10³ = I/I₀.
+    'mate-47': lambda q: {**q, 'stem': [r'La expresión \( 10^3 = \dfrac{I}{I_0} \) relaciona la sonoridad de un sonido de 30 decibeles con su intensidad (I) y la menor intensidad (I₀) que percibe el oído humano. ¿Cuántas veces es el valor de I respecto a I₀?']},
+    # mate-44: el Word dice "como muestra la figura", pero no trae la figura.
+    'mate-44': lambda q: {**q, 'stem': [q['stem'][0].replace(', como muestra la figura', ''),
+                                        'Para determinar el área que le corresponde a cada persona, se divide 2π entre 10, lo que determina el ángulo θ de cada sector, y se usa la fórmula del área de un sector circular:',
+                                        r'\[ S = \dfrac{r^2\,\theta}{2} \]', 'donde r es el radio de la circunferencia.'] + q['stem'][4:],
+                         'options': [o.replace(' m2', ' m²') for o in q['options']]},
+    # Opciones gráficas: el texto va vacío, la opción es su imagen (OPTION_IMAGES).
+    'mate-12': lambda q: {**q, 'options': ['', '', '', '']},
+    'mate-33': lambda q: {**q, 'options': ['', '', '', '']},
+    'mate-42': lambda q: {**q, 'options': ['', '', '', '']},
+    'mate-43': lambda q: {**q, 'stem': [r'El área de los rectángulos que se pueden construir a partir del origen, los ejes y un punto que pertenece a la gráfica de la función \( f(x) = \dfrac{5}{x} \), donde x > 0, se describe con la expresión \( A(x) = x \cdot f(x) \).',
+                                        '¿Cuál de las siguientes gráficas corresponde a A(x)?'],
+                         'options': ['', '', '', '']},
+    # Fórmulas que en texto plano quedaban ambiguas: en LaTeX (KaTeX, CLAUDE.md §5).
+    'mate-18': lambda q: {**q, 'options': [r'\( x = \dfrac{2\,\text{sen}(30^\circ)}{\text{sen}(45^\circ)} \)', r'\( x = \dfrac{2\,\text{sen}(60^\circ)}{\text{sen}(45^\circ)} \)',
+                                           r'\( x = \dfrac{\text{sen}(60^\circ)}{\text{sen}(75^\circ)} \)', r'\( x = \dfrac{\text{sen}(30^\circ)}{\text{sen}(60^\circ)} \)']},
+    'mate-19': lambda q: {**q, 'options': [r'\( \tfrac{3}{2}x = 0 \), donde x es la cantidad de puntos que anotará P.',
+                                           r'\( 7 + x = \tfrac{3}{2}x + 2 \), donde x es la cantidad de puntos que anotará P.',
+                                           r'\( 7 + 3x = 2 + 2y \), donde x es la cantidad de puntos que anotará P, y y la cantidad de puntos que anotará Q.',
+                                           r'\( x + y = 7 + 2 \), donde x es la cantidad de puntos que anotará P, y y la cantidad de puntos que anotará Q.']},
+    'mate-22': lambda q: {**q, 'stem': [q['stem'][0], r'Para realizar el corte, se determinó la altura del triángulo usando la fórmula \( \text{sen}(45^\circ) = \dfrac{h}{120} \); luego se dividió h entre dos. Realizando este procedimiento, y teniendo en cuenta que \( \text{sen}(45^\circ) = \dfrac{\sqrt{2}}{2} \approx 0{,}71 \), ¿cuál fue, aproximadamente, la distancia a la que se cortó la altura del triángulo?']},
+    'mate-49': lambda q: {**q, 'options': [r'\( 800.000 + 5n \)', r'\( 800.000\,(5n) \)', r'\( 800.000\left(\dfrac{5}{100}\right)^{n} \)', r'\( 800.000\left(1 + \dfrac{5}{100}\right)^{n} \)']},
+    # Renglones partidos o pegados en el Word.
+    'mate-15': lambda q: {**q, 'stem': [s.replace('30º', '30°') for s in q['stem']]},
+    'mate-24': lambda q: {**q, 'stem': [s.replace('dm² ”', 'dm²”') for s in q['stem']]},
+    'mate-40': lambda q: {**q, 'stem': [q['stem'][0] + ' ' + q['stem'][1]]},
+    'mate-46': lambda q: {**q, 'stem': q['stem'][:4] + re.split(r' (?=Procedimiento \d\.)', q['stem'][4]) + q['stem'][5:]},
     # ── Corregidas: en el Word la clave o los datos no cuadraban ────────────
-    # mat-01: la opción B (clave del Word) decía "No…" y a la vez "su
-    # afirmación es correcta". B pasa a ser un distractor real y la clave es A.
-    'mat-01': lambda q: {**q, 'options': [q['options'][0], 'No, porque el 40 % de 600 m² es 360 m², no 240 m².'] + q['options'][2:],
-                         'correct': 0},
-    # mat-02: la tabla no duplicaba las medidas (3→5 cm) pero la clave D sí lo
-    # suponía. Ahora el cono grande duplica al pequeño y D es la correcta.
-    'mat-02': lambda q: {**q, 'stem': _stem_replace(q, [('▸ Mediano | 4 | 8', '▸ Mediano | 4,5 | 9'), ('▸ Grande | 5 | 10', '▸ Grande | 6 | 12')]),
-                         'options': ['Sí, porque la altura y el diámetro del cono grande son el doble de los del cono pequeño.',
-                                     q['options'][1], 'No, porque el factor de escala entre los conos es 3/2, no 2.', q['options'][3]],
-                         'correct': 3},
-    # mat-20: la figura no permitía llegar a 14 cm (8 + 6). Se dan las medidas
-    # de los tramos que muestra el dibujo y la respuesta es 5 + 4 = 9 cm.
-    'mat-20': lambda q: {**q, 'stem': ['La figura muestra un rectángulo de 8 cm de ancho y 6 cm de alto. En su interior se ha dibujado una línea quebrada de color azul: parte del lado izquierdo, 2 cm por debajo del borde superior, avanza 5 cm hacia la derecha y luego baja en línea recta hasta el borde inferior.',
-                                       '¿Cuál es la longitud total de la línea quebrada de color azul?'],
-                         'options': ['9 cm', '14 cm', '11 cm', '7 cm'], 'correct': 0},
     # bio-05: "depredación" no describe el fenómeno. La opción A nombra ahora
     # lo que es (mimetismo engañoso), con la misma justificación del Word.
     'bio-05': lambda q: {**q, 'options': ['Mimetismo engañoso, porque la orquídea se beneficia y el insecto es engañado sin recibir nada a cambio.'] + q['options'][1:],
@@ -410,11 +607,6 @@ FIX = {
                                                         ('▸ Oxigeno |', '▸ Oxígeno |')]),
                          'options': ['Bromo', 'Hierro', 'Cloro', 'Oxígeno'], 'correct': 0},
 
-    'mat-14': lambda q: {**q, 'stem': [q['stem'][0], q['stem'][1]] + [f'{i + 1}. {l}' for i, l in enumerate(q['stem'][2:6])] + q['stem'][6:]},
-    'mat-14': lambda q: {**q, 'stem': [q['stem'][0], q['stem'][1]] + [f'{i + 1}. {l}' for i, l in enumerate(q['stem'][2:6])] + q['stem'][6:]},
-    'mat-19': lambda q: {**q, 'stem': ['Un grupo de estudiantes debe resolver la siguiente ecuación:', '2(x − 3) = 4x + 2',
-                                       'Cuatro estudiantes proponen los siguientes primeros pasos para despejar la incógnita:']
-                                      + ['• ' + l for l in q['stem'][3:7]] + q['stem'][7:]},
     'bio-15': lambda q: {**q, 'stem': [s.replace('sustained', 'sostenido') for s in q['stem']]},
     'fis-05': lambda q: {**q, 'stem': [s.replace('En el sistema de la figura, una fuerza', 'Una fuerza') for s in q['stem']]},
     'fis-16': lambda q: {**q, 'stem': [s.replace(' emitie una', ' y emite una') for s in q['stem']]},
@@ -439,12 +631,15 @@ FIX = {
 
 # ── Ids estables por asignatura ──────────────────────────────────────────────
 AREA_OF = {'mat': 'matematicas', 'lec': 'lectura', 'bio': 'biologia', 'qui': 'quimica', 'fis': 'fisica', 'soc': 'sociales'}
+# Matemáticas cambió de documento (oct 2026): sus ids van con otro prefijo
+# ("mate-") para no reutilizar los "mat-" de preguntas que ya no existen.
+ID_PREFIX = {'mat': 'mate'}
 seq = {}
 out_q = []
 for it in d['items']:
     k = it['src']
     seq[k] = seq.get(k, 0) + 1
-    qid = f'{k}-{seq[k]:02d}'
+    qid = f'{ID_PREFIX.get(k, k)}-{seq[k]:02d}'
     it = dict(it)
     if qid in FIX:
         it = FIX[qid](it)
@@ -489,8 +684,26 @@ for p in d['passages']:
     if source: pas['source'] = source
     pass_out[pid] = pas
 
+# Matemáticas: información compartida por varias preguntas ("RESPONDE LAS
+# PREGUNTAS 4 A 6…"). Viaja como texto de apoyo (passage) igual que en
+# Lectura; el encabezado del Word se cambia porque en la ronda la numeración
+# es otra y las preguntas se eligen sueltas.
+MATH_PASSAGE_TITLE = {0: 'Capacitación en informática básica', 1: 'Mango y banano para las ciudades W y Z'}
+for p in d.get('mpassages', []):
+    imgs = [{'url': pub('mat', im)} for im in p['images'] if pub('mat', im)]
+    pas = {'intro': 'Lee la siguiente información para responder.', 'title': MATH_PASSAGE_TITLE[p['id']],
+           'paragraphs': [tidy(x) for x in p['body']]}
+    if imgs: pas['images'] = imgs
+    pass_out[f"mp-{p['id'] + 1:02d}"] = pas
+
 
 def time_limit(q, area, passage):
+    if area == 'matematicas':
+        # Enunciados tipo Saber (tablas, procedimientos): según lo que hay que leer.
+        chars = sum(len(x) for x in q['stem']) + sum(len(o) for o in q['options'])
+        chars += sum(len(x) for x in (passage or {}).get('paragraphs', []))
+        t = 45 + chars / 12 + (20 if q.get('images') or (passage or {}).get('images') else 0)
+        return int(min(150, max(60, round(t / 15) * 15)))
     if area == 'sociales':
         # Enunciados largos (casos, fragmentos de textos): según lo que hay que leer.
         chars = sum(len(x) for x in q['stem']) + sum(len(o) for o in q['options'])
@@ -508,15 +721,30 @@ def time_limit(q, area, passage):
 
 rng = random.Random(2026)
 DIFFS = ['facil', 'media', 'dificil']
+# Matemáticas va primero en el borrador y el banco anterior (20 preguntas)
+# consumía los 20 primeros valores del generador. Se descartan esos 20 y
+# Matemáticas usa su propio generador: así cambiar de documento no le
+# baraja la dificultad a Ciencias ni a Lectura.
+for _ in range(20):
+    rng.choice(DIFFS)
+rng_mat = random.Random('matematicas-2026')
 questions = []
 for it in out_q:
     area = AREA_OF[it['src']]
     stem = [chem(tidy(l.replace('▸ ', ''))) if area in ('quimica', 'fisica', 'biologia') else tidy(l.replace('▸ ', '')) for l in it['stem']]
     opts = [chem(tidy(o)) if area in ('quimica', 'fisica', 'biologia') else tidy(o) for o in it['options']]
     passage_id = f"lp-{it['passage'] + 1:02d}" if it.get('passage') is not None else None
+    if it.get('mpassage') is not None:
+        passage_id = f"mp-{it['mpassage'] + 1:02d}"
     q = {'id': it['id'], 'area': area, 'question': '\n'.join(stem), 'options': opts, 'correct': it['correct']}
-    imgs = [pub(it['src'] if it['src'] in ('mat', 'lec', 'soc') else 'cie', im) for im in it.get('images', [])]
+    opt_imgs = OPTION_IMAGES.get(it['id'], [])
+    imgs = [pub(it['src'] if it['src'] in ('mat', 'lec', 'soc') else 'cie', im) for im in it.get('images', []) if im not in opt_imgs]
     imgs = [x for x in imgs if x]
+    if it['id'] in COMPOSITES:
+        imgs = [compose(it['id'])]
+    if opt_imgs:
+        q['optionImages'] = [pub('mat', im) for im in opt_imgs]
+        assert all(q['optionImages']) and len(q['optionImages']) == len(opts), it['id']
     if imgs:
         q['image'] = imgs[0]
     # EXPLAIN primero: en las preguntas corregidas reemplaza la justificación del Word.
@@ -533,6 +761,8 @@ for it in out_q:
     # agregarla no cambia la dificultad ya asignada a las otras.
     if area == 'sociales':
         q['difficulty'] = {'baja': 'facil', 'media': 'media', 'alta': 'dificil'}[it['dificultad'].strip().lower()]
+    elif area == 'matematicas':
+        q['difficulty'] = rng_mat.choice(DIFFS)
     else:
         q['difficulty'] = rng.choice(DIFFS)
     if it.get('topic') and area != 'lectura':
@@ -568,18 +798,22 @@ for area, qs in byarea.items():
         # Con dificultad real: primera ronda = baja y media; ronda final = alta.
         r1 = [q['id'] for q in ok if q['difficulty'] in ('facil', 'media')][:10]
         r2 = [q['id'] for q in ok if q['difficulty'] == 'dificil'][:10]
+    elif area == 'matematicas':
+        # Las primeras 20 del documento, sin partir un bloque de información
+        # compartida: la 4–6 (capacitación) va completa en la primera ronda y
+        # la 9–13 (mango y banano) completa en la final.
+        ids = [q['id'] for q in ok]
+        pick = lambda nums: [f'mate-{n:02d}' for n in nums if f'mate-{n:02d}' in ids]
+        r1 = pick([1, 2, 3, 4, 5, 6, 7, 8, 14, 15])
+        r2 = pick([9, 10, 11, 12, 13, 16, 17, 18, 19, 20])
     else:
         # Primera ronda: las primeras del documento (las más directas);
         # ronda final: las del segundo bloque, que piden más elaboración.
-        first = [q for q in ok if q['source'].endswith('parte 1') or area == 'matematicas']
+        first = [q for q in ok if q['source'].endswith('parte 1')]
         second = [q for q in ok if q['source'].endswith('parte 2')]
-        if area == 'matematicas':
-            r1 = [q['id'] for q in ok[:10]]
-            r2 = [q['id'] for q in ok[10:20]]
-        else:
-            r2 = [q['id'] for q in second[:10]]
-            r1 = [q['id'] for q in first[:10]]
-            r1 += [q['id'] for q in second[10:]][:10 - len(r1)]
+        r2 = [q['id'] for q in second[:10]]
+        r1 = [q['id'] for q in first[:10]]
+        r1 += [q['id'] for q in second[10:]][:10 - len(r1)]
     defaults[area] = {'r1': r1, 'r2': r2}
 
 bank = {

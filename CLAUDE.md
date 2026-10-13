@@ -289,7 +289,7 @@ Next module unlocks (dependencies checked)
 
 **Quiz `passage` + per-question fields** (lectura crítica y similares): a `quiz` reto can carry an optional `challenge_data.passage` (texto/imágenes mostrados **encima** de las preguntas) and each question accepts optional fields:
 - `passage`: `{ intro, title, paragraphs:[str], source, images:[{url,caption,width,height}], imagesLayout:'row'|'column' }`. Rendered by `QuizPassage` in `challenges.jsx` con `objectFit:contain` (no recorta); `width`/`height` aceptan número (px) o string CSS.
-- Por pregunta: `image`+`imageHeight`+`imagePosition` (imagen del enunciado; `imagePosition ∈ before|between|after` — helper `QuestionImage` en `challenges.jsx`, default `before`). `before`=arriba de la pregunta, `after`=bajo las opciones, `between`=**en medio del texto del enunciado**: parte la pregunta en `question` (antes de la imagen) + `questionAfter` (después). `optionImages` (array alineado por índice con `options`: imagen por opción para preguntas visuales — helper `OptionContent`; una opción es válida con texto **o** imagen), `explanation`+`explanationImage` (se muestran tras responder y en el repaso), `timeLimit`/`points`/`difficulty` (metadatos que alimentan el **Modo Aula en Vivo**). El cuadro del enunciado en el editor es un `textarea` ampliable (preguntas largas con párrafos). ⚠️ El **Modo Aula en Vivo** (`LiveQuestionView.jsx` + snapshot SQL de `create_live_session`) aún NO renderiza `optionImages`/`imagePosition`/`questionAfter` (solo `image` arriba) — quedaría pendiente si se quiere allá.
+- Por pregunta: `image`+`imageHeight`+`imagePosition` (imagen del enunciado; `imagePosition ∈ before|between|after` — helper `QuestionImage` en `challenges.jsx`, default `before`). `before`=arriba de la pregunta, `after`=bajo las opciones, `between`=**en medio del texto del enunciado**: parte la pregunta en `question` (antes de la imagen) + `questionAfter` (después). `optionImages` (array alineado por índice con `options`: imagen por opción para preguntas visuales — helper `OptionContent`; una opción es válida con texto **o** imagen), `explanation`+`explanationImage` (se muestran tras responder y en el repaso), `timeLimit`/`points`/`difficulty` (metadatos que alimentan el **Modo Aula en Vivo**). El cuadro del enunciado en el editor es un `textarea` ampliable (preguntas largas con párrafos). ⚠️ El **Modo Aula en Vivo** (`LiveQuestionView.jsx` + snapshot SQL de `create_live_session`) aún NO renderiza `imagePosition` (solo `image` arriba). `optionImages` sí, desde 0080 (`OptionImage`/`optionsLayout` en `LiveQuestionView.jsx`, también usados por `LiveHost.jsx`): con imágenes, las opciones van en rejilla de 2 columnas (1 en celular).
 - Se autoran en `route-editor/QuizCreatorModal.jsx` (sección "texto/imágenes de apoyo" + "⚙️ Opciones avanzadas" por pregunta, con reordenar/duplicar). El store reenvía `passage` y el array `questions` completo, así que campos nuevos por pregunta viajan solos.
 - **Subida de imágenes in-app:** componente reutilizable `ImageUploader` (`ui.jsx`) → sube a Supabase Storage bucket `attachments` (carpeta `passage-images`) y devuelve la URL pública vía `onUploaded(url)`. El bucket `attachments` debe ser **público**.
 - **Texto enriquecido ligero (enunciado + opciones):** el texto de pregunta/`questionAfter`/opciones respeta espacios y saltos de línea y soporta markup mínimo — `**negrilla**` y `{{#e8732c|color}}` (hex 3–8 díg.). Sin librerías: `parseRich`/`RichText` (render, `whiteSpace:pre-wrap`) y `RichInput` (editor con mini-barra B + colores que envuelve la selección) viven en `ui.jsx`. El markup se guarda como texto plano dentro de `challenge_data`, así que viaja solo y es retrocompatible. Aplicado en `QuizCreatorModal.jsx` (autoría) y `challenges.jsx` (`QuizChallenge`/`PollChallenge`, enunciado + opciones + repaso + mensaje de acierto/error); el Modo Aula en Vivo y el panel del profesor también pintan con `RichText`/`QuestionText`.
@@ -686,12 +686,21 @@ módulos son rondas de preguntas que la Clase en Vivo muestra **una a una**
   preguntas". La marca es `challenge_data.bank` (+ `bankRound` 1|2) y el helper
   `isQuestionRound`/`displayType` de `src/lib/questionBankMeta.js`.
   `passingScore: 0`: una ronda nunca frena la ruta.
-- **Banco** (`src/lib/questionBank.json`, ~200 KB, chunk lazy fuera del
-  precaché): 219 preguntas — Matemáticas 20, Lectura crítica 75, Biología 25,
+- **Banco** (`src/lib/questionBank.json`, ~300 KB, chunk lazy fuera del
+  precaché): 249 preguntas — Matemáticas 50, Lectura crítica 75, Biología 25,
   Química 25, Física 25 y Ciencias Sociales 49. Las rondas de Sociales las carga
   `0078_rondas_sociales.sql` (recorre la familia completa del curso, copias de
   copias incluidas). GENERADO desde los Word por `scripts/banco-preguntas/build.py` — ver su
   README. No editar a mano.
+- **Matemáticas cambió de documento (oct 2026):** 50 preguntas tipo Saber
+  reemplazan las 20 anteriores. Ids **`mate-NN`** (no `mat-NN`: el análisis de
+  ítems agrupa por id y no debe mezclar preguntas distintas). Las preguntas con
+  opciones gráficas (12, 33, 42, 43) usan `optionImages`, que desde 0080 la
+  clase en vivo también pinta (estudiante y panel del profesor). `0080_rondas_matematicas_nuevo_banco.sql` cambia las
+  preguntas de los módulos 4 y 6 ya cargados por 0075 — solo donde todas
+  vienen del banco anterior; con preguntas propias del tutor no toca nada.
+  ⚠️ `build-rondas.mjs` ya **no reescribe** migraciones existentes (0075/0078
+  están aplicadas): un cambio del banco después va en una migración nueva.
 - **El tutor elige del banco** en el editor de ruta: ✏️ en la ronda (o el chip
   "🎮 Primera ronda · N preguntas") → "📚 Elegir del banco" (`QuestionBankPicker`):
   filtros por dificultad, búsqueda, aviso si la pregunta ya está en la otra
@@ -954,6 +963,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...
    - Aplicada `0076` (resultados Saber del colegio en el módulo 3, datos sintéticos, §15) y su refuerzo `0077` (familia completa de cada curso + diagnóstico por colegio).
    - Aplicada `0078` (rondas de Ciencias Sociales en los módulos 4 y 6, §14).
    - Aplicada `0079` (la sección de resultados Saber va siempre en el módulo 3; 0077 la dejó en el 7 de Sociales, §15).
+   - Aplicada `0080` (oct 2026: Matemáticas, las rondas de los módulos 4 y 6 pasan al banco nuevo de 50 preguntas, §14; además el snapshot en vivo lleva `optionImages`, §5). Probada con `scripts/test-migraciones/run-rondas-matematicas.mjs`.
    - ⚠️ **Rutas de las 4 asignaturas = SOLO sus 7 módulos** (oct 2026): 1 apertura (rompehielos/físicas) · 2 estructura Saber · 3 bitácora · 4 primera ronda · 5 pausa activa (solo físicas) · 6 ronda final · 7 cierre. No agregar retos "Pregunta en Vivo" por migración: las preguntas de la clase en vivo las sube el equipo académico desde el editor de ruta.
 7. **CLI de Supabase inoperante:** sin `supabase/config.toml`, `db diff --linked` y `db push` fallan. Las migraciones se corren a mano; probarlas antes con `scripts/test-migraciones/`
 

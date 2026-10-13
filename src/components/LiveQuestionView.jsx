@@ -26,6 +26,17 @@ const MyAvatar = ({ cfg, size, expression }) => (cfg
 // =============================================
 
 export const OPT_COLORS = ['#E8732C', '#3B82F6', '#10B981', '#A855F7', '#F59E0B', '#EF4444']
+
+// Opciones con imagen (gráficas, tablas): fondo blanco fijo, porque las
+// imágenes vienen dibujadas sobre blanco y los temas de curso son oscuros.
+export const OptionImage = ({ src, maxHeight = 170 }) => src ? (
+  <img src={src} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight, objectFit: 'contain',
+    borderRadius: 8, background: '#fff', padding: 4 }} />
+) : null
+// Con imágenes, las opciones van en rejilla: 2 columnas si caben, 1 en celular.
+export const optionsLayout = (optionImages, gap) => (optionImages || []).some(Boolean)
+  ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap }
+  : { display: 'flex', flexDirection: 'column', gap }
 export const cardStyle = { background: 'var(--white)', borderRadius: 20, padding: '24px 22px', boxShadow: 'var(--sh-lg)', border: '1px solid var(--border)' }
 
 export const Countdown = ({ startedAt, limit }) => {
@@ -210,7 +221,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
     const mq = moduleQuestions?.[i]
     if (!mq) return snap
     return { ...snap, passage: snap.passage || mq.passage, hint: snap.hint || mq.hint,
-      questionAfter: snap.questionAfter || mq.questionAfter }
+      questionAfter: snap.questionAfter || mq.questionAfter, optionImages: snap.optionImages || mq.optionImages }
   }
   const qNow = withModuleData((session?.questions || [])[session?.current_index] || {}, session?.current_index)
   const hintKey = session?.phase === 'question' ? `${session.current_index}|${session.question_started_at}` : null
@@ -336,7 +347,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
         {isPoll ? (
           <PollBars sessionId={session.id} index={idx} options={options} myAns={myAns} />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={optionsLayout(q.optionImages, 8)}>
             {options.map((opt, i) => {
               const isCorrect = i === correct, isMine = i === myAns
               return (
@@ -353,7 +364,10 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
                   display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 22, height: 22, borderRadius: 6, background: OPT_COLORS[i % OPT_COLORS.length], color: '#fff',
                     fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{String.fromCharCode(65 + i)}</span>
-                  <span style={{ flex: 1 }}><RichText>{opt}</RichText>{isCorrect && ' ✓'}{isMine && !isCorrect && ' ✗'}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <OptionImage src={q.optionImages?.[i]} maxHeight={140} />
+                    <RichText>{opt}</RichText>{isCorrect && ' ✓'}{isMine && !isCorrect && ' ✗'}
+                  </span>
                 </div>
               )
             })}
@@ -416,7 +430,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
           <p style={{ fontSize: 13, color: 'var(--muted)' }}>Espera a que el profesor muestre los resultados.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={optionsLayout(q.optionImages, 10)}>
           {options.map((opt, i) => (
             <button key={i} onClick={() => answer(i)} disabled={sending}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', borderRadius: 14, cursor: 'pointer',
@@ -424,7 +438,10 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
                 fontFamily: 'var(--font)', fontSize: 16, fontWeight: 700, boxShadow: 'var(--sh-md)', opacity: sending ? .7 : 1 }}>
               <span style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,.25)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>{String.fromCharCode(65 + i)}</span>
-              <RichText style={{ lineHeight: 1.4 }}>{opt}</RichText>
+              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <OptionImage src={q.optionImages?.[i]} />
+                {opt && <RichText style={{ lineHeight: 1.4 }}>{opt}</RichText>}
+              </span>
             </button>
           ))}
         </div>

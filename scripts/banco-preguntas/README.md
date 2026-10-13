@@ -8,6 +8,7 @@ pip install pillow                      # una sola vez
 python scripts/banco-preguntas/build.py # Word → banco + imágenes
 node scripts/build-rondas.mjs           # banco → migración 0075 (rondas predeterminadas)
 node scripts/test-migraciones/run-rondas.mjs   # probar la migración antes de correrla
+node scripts/test-migraciones/run-rondas-matematicas.mjs   # 0080
 ```
 
 ## Fuente
@@ -31,18 +32,40 @@ dos partes). Las claves salen de las tablas de respuestas de cada documento.
   regenerar no la baraja de nuevo. Cuando llegue la real, ponerla por id en
   `curate.py` en vez del azar.
 - **Preguntas corregidas respecto al Word** (en `FIX`, con un comentario cada
-  una): mat-01 (la opción clave se contradecía), mat-02 (la tabla no duplicaba
-  las medidas), mat-20 (la figura no daba 14 cm: ahora el enunciado da los
-  tramos y la respuesta es 9 cm), bio-05 (“depredación” → mimetismo engañoso) y
-  qui-10 (dos respuestas posibles: mercurio → hierro y datos reales del cloro).
-  En fis-21 se quitó la imagen porque dibujaba la desviación al revés de la
-  clave. Si aparece otra pregunta dudosa, `REVIEW` la deja en el banco con
-  "⚠️ Revisar" y fuera de las rondas predeterminadas.
+  una): bio-05 (“depredación” → mimetismo engañoso) y qui-10 (dos respuestas
+  posibles: mercurio → hierro y datos reales del cloro). En fis-21 se quitó la
+  imagen porque dibujaba la desviación al revés de la clave. En Matemáticas,
+  mate-08 (el Word perdió el “= −” de las opciones A y C) y mate-47 (decía
+  10³ = 1/1₀ en vez de I/I₀). Si aparece otra pregunta dudosa, `REVIEW` la deja
+  en el banco con "⚠️ Revisar" y fuera de las rondas predeterminadas.
 - **Ids estables** (`mat-01`, `lec-37`…): son el id de la pregunta dentro del
   módulo. Cambiar el orden del Word cambia los ids — si ya hay rondas en uso,
   agregar las preguntas nuevas al final.
 - **Lectura**: cada pregunta lleva su texto copiado (`passage`), porque en el
   módulo las preguntas se eligen sueltas.
+- **Matemáticas** (`matematicas.docx`, 50 preguntas tipo Saber, oct 2026;
+  reemplazó al documento de 20). El Word trae solo la clave (tabla final): las
+  **explicaciones** y las pistas las escribe `curate.py`, y cada clave se
+  verificó resolviendo la pregunta.
+  - Ids **`mate-NN`** (= número de la pregunta en el Word), distintos de los
+    `mat-NN` del banco anterior: el análisis de ítems agrupa por id y no debe
+    mezclar respuestas de preguntas distintas.
+  - Los bloques “RESPONDE LAS PREGUNTAS 4 A 6…” (y 9 a 13) van como texto de
+    apoyo (`passageId` `mp-01`, `mp-02`), igual que en Lectura.
+  - Las preguntas con **opciones gráficas** (12, 33, 42, 43) llevan una
+    imagen por opción (`optionImages`, en `OPTION_IMAGES`) con el texto de la
+    opción vacío. La 24 trae tres figuras en el enunciado y se publican en una
+    sola imagen, en fila (`COMPOSITES`): una pregunta tiene una sola imagen de
+    enunciado.
+  - Fórmulas que en texto plano quedaban ambiguas van en LaTeX (`\( … \)`,
+    KaTeX). Dificultad al azar con **su propio generador**, para no barajar la
+    de las otras asignaturas.
+  - Rondas: primera = 1–8, 14, 15; final = 9–13, 16–20 (los bloques de
+    información compartida no se parten). Las cambia en la base de datos
+    `0080_rondas_matematicas_nuevo_banco.sql`.
+- **Migraciones ya aplicadas no se reescriben**: `build-rondas.mjs` solo
+  escribe 0075/0078/0080 si no existen (`--force` para regenerarlas). Un cambio
+  del banco después de aplicarlas va en una migración nueva.
 - **Ciencias Sociales** (`sociales.docx`, 49 preguntas) trae la **dificultad
   real**, la competencia y la afirmación de cada pregunta en su tabla final:
   se usan tal cual (no consume el azar, así que agregarla no cambió la

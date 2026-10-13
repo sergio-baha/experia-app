@@ -193,9 +193,21 @@ end $$;
 select asignatura, estado, detalle from _0075_estado order by paso, asignatura, estado, detalle;
 `
 
-const out = path.join(ROOT, 'supabase/migrations/0075_rondas_banco_preguntas.sql')
-fs.writeFileSync(out, sql)
-console.log('Escrito', path.relative(ROOT, out), `(${(sql.length / 1024).toFixed(0)} KB)`)
+// Una migración ya aplicada en Supabase no se reescribe: si el banco cambia
+// después, el cambio va en una migración NUEVA (como 0080 para Matemáticas).
+// --force las regenera todas (solo para una base que aún no las corrió).
+const FORCE = process.argv.includes('--force')
+const writeMigration = (file, content) => {
+  const out = path.join(ROOT, 'supabase/migrations', file)
+  if (fs.existsSync(out) && !FORCE) {
+    console.log('Sin cambios', file, '(ya existe; ya aplicada — usa --force para regenerarla)')
+    return
+  }
+  fs.writeFileSync(out, content)
+  console.log('Escrito', file, `(${(content.length / 1024).toFixed(0)} KB)`)
+}
+
+writeMigration('0075_rondas_banco_preguntas.sql', sql)
 
 // ── 0078: rondas de Ciencias Sociales (llegaron después de aplicar 0075) ──────
 // Mismas reglas que 0075, pero recorriendo la familia COMPLETA del curso
@@ -279,6 +291,150 @@ end $$;
 
 select estado, curso, detalle from _0078_estado order by estado, curso;
 `
-const out78 = path.join(ROOT, 'supabase/migrations/0078_rondas_sociales.sql')
-fs.writeFileSync(out78, sql78)
-console.log('Escrito', path.relative(ROOT, out78), `(${(sql78.length / 1024).toFixed(0)} KB)`)
+writeMigration('0078_rondas_sociales.sql', sql78)
+
+// ── 0080: Matemáticas cambia de banco (documento de 50 preguntas, oct 2026) ──
+// 0075 ya cargó las rondas con el banco anterior (ids "mat-NN"); 0080 cambia
+// esas preguntas por las nuevas ("mate-NN"). Reemplaza solo rondas cuyas
+// preguntas vienen TODAS del banco anterior; si el tutor agregó preguntas
+// propias, no toca nada y lo informa.
+const mat = FAMILIAS.find(f => f.area === 'matematicas')
+const sql80 = `-- ============================================================
+-- 0080_rondas_matematicas_nuevo_banco.sql
+-- GENERADO por scripts/build-rondas.mjs — no editar a mano.
+--
+-- Matemáticas cambia de banco de preguntas: el documento del equipo
+-- académico de 50 preguntas (tipo Saber) reemplaza al de 20. Los módulos 4
+-- (primera ronda) y 6 (ronda final) cambian sus preguntas por:
+--   primera ronda: ${bank.defaults.matematicas.r1.join(', ')}
+--   ronda final:   ${bank.defaults.matematicas.r2.join(', ')}
+-- (en la ronda va la 4–6 completa en la primera y la 9–13 completa en la
+-- final: comparten información y no se parten).
+--
+-- Qué toca, en la familia COMPLETA del curso (base, copias por colegio y
+-- copias de copias):
+--   - Ronda cuyas preguntas vienen TODAS del banco anterior (ids "mat-NN",
+--     sean las predeterminadas o elegidas por el tutor) → REEMPLAZADA.
+--     Solo cambia challenge_data.questions: título, orden, XP, progreso de
+--     los estudiantes y la guía del bloque se conservan.
+--   - Ronda con preguntas propias del tutor → NO TOCADO (se informa).
+--   - Ronda que ya tiene el banco nuevo ("mate-NN") → YA APLICADA.
+-- Los ids nuevos son distintos a propósito: el análisis de ítems agrupa por
+-- id y no debe mezclar respuestas de preguntas diferentes.
+-- Además, la clase en vivo pasa a llevar las imágenes de las OPCIONES
+-- (optionImages): las preguntas 12, 33, 42 y 43 tienen gráficas o tablas
+-- como opciones de respuesta.
+-- Requiere 0075. Idempotente. EJECUTAR en Supabase SQL Editor.
+-- ============================================================
+
+-- ── 1. Snapshot de la clase en vivo con imágenes por opción ────────────
+-- Igual que en 0075 + 'optionImages'. La respuesta correcta sigue SOLO en
+-- live_session_keys.
+create or replace function public._snapshot_module_questions(p_module_id uuid, p_default_time int default 20)
+returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_questions jsonb;
+  v_snapshot  jsonb := '[]'::jsonb;
+  v_keys      jsonb := '[]'::jsonb;
+  q jsonb;
+begin
+  select challenge_data->'questions' into v_questions from public.course_modules where id = p_module_id;
+
+  for q in select value from jsonb_array_elements(coalesce(v_questions, '[]'::jsonb)) as t(value) loop
+    v_snapshot := v_snapshot || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
+      'question',      q->>'question',
+      'questionAfter', q->>'questionAfter',
+      'options',       coalesce(q->'options', '[]'::jsonb),
+      'optionImages',  q->'optionImages',
+      'image',         q->>'image',
+      'imageHeight',   q->'imageHeight',
+      'passage',       q->'passage',
+      'hint',          q->>'hint',
+      'time_limit_s',  coalesce(nullif(q->>'timeLimit','')::int, p_default_time)
+    )));
+    v_keys := v_keys || jsonb_build_array(jsonb_build_object(
+      'correct',          (q->>'correct')::int,
+      'points',           coalesce(nullif(q->>'points','')::int, 1000),
+      'time_limit_s',     coalesce(nullif(q->>'timeLimit','')::int, p_default_time),
+      'explanation',      q->>'explanation',
+      'explanationImage', q->>'explanationImage'
+    ));
+  end loop;
+
+  return jsonb_build_object('snapshot', v_snapshot, 'keys', v_keys);
+end; $$;
+revoke execute on function public._snapshot_module_questions(uuid, int) from public;
+
+-- ── 2. Preguntas nuevas en las rondas ───────────────────────────────────
+drop table if exists _0080_estado;
+create temp table _0080_estado (estado text, curso text, detalle text);
+
+do $$
+declare
+  v_base uuid := (select coalesce(parent_course_id, id) from public.courses where id = ${mat.ref});
+  v_r1 jsonb := ${dollar('mat1', ronda('matematicas', 1))};
+  v_r2 jsonb := ${dollar('mat2', ronda('matematicas', 2))};
+  c record; m record; v_ronda int; v_new jsonb; v_nombre text;
+  v_total int; v_viejas int; v_nuevas int;
+begin
+  if v_base is null then
+    insert into _0080_estado values ('CURSO NO ENCONTRADO', '—', 'No existe el curso de Matemáticas en esta base de datos.');
+    return;
+  end if;
+
+  for c in
+    with recursive fam as (
+      select id from public.courses where id = v_base
+      union
+      select ch.id from public.courses ch join fam on ch.parent_course_id = fam.id
+    )
+    select co.id, co.name, co.draft_modules is not null as has_draft
+      from public.courses co join fam on fam.id = co.id
+     order by co.parent_course_id nulls first, co.name
+  loop
+    -- El borrador guarda los módulos con las preguntas VIEJAS: publicarlo
+    -- deshace esta migración en ese curso.
+    if c.has_draft then
+      insert into _0080_estado values ('BORRADOR PENDIENTE', c.name,
+        'Tiene un borrador sin publicar en el editor de ruta: descartarlo antes de publicar, o volverán las preguntas anteriores.');
+    end if;
+    foreach v_ronda in array array[4, 6] loop
+      v_new := case when v_ronda = 4 then v_r1 else v_r2 end;
+      v_nombre := case when v_ronda = 4 then 'primera ronda' else 'ronda final' end;
+      select * into m from public.course_modules where course_id = c.id and "order" = v_ronda;
+      if m.id is null then
+        insert into _0080_estado values ('SIN MÓDULO ' || v_ronda, c.name, 'La ruta no tiene módulo en esa posición.');
+        continue;
+      end if;
+      if not (m.type = 'challenge' and m.challenge_data->>'bank' = 'matematicas') then
+        insert into _0080_estado values ('NO ES RONDA', c.name,
+          format('%s (%s): no es una ronda del banco (%s). No se cambió.', m.title, v_nombre, m.type));
+        continue;
+      end if;
+      select count(*),
+             count(*) filter (where e->>'id' ~ '^mat-[0-9]{2}$'),
+             count(*) filter (where e->>'id' like 'mate-%')
+        into v_total, v_viejas, v_nuevas
+        from jsonb_array_elements(coalesce(m.challenge_data->'questions', '[]'::jsonb)) as t(e);
+      if v_total > 0 and v_nuevas = v_total then
+        insert into _0080_estado values ('YA APLICADA', c.name, m.title || ' (' || v_nombre || ')');
+      elsif v_viejas = v_total then
+        update public.course_modules
+           set challenge_data = jsonb_set(m.challenge_data, '{questions}', v_new->'questions'),
+               updated_at = now()
+         where id = m.id;
+        insert into _0080_estado values ('REEMPLAZADA', c.name,
+          format('%s (%s): %s preguntas del banco anterior → %s del nuevo.', m.title, v_nombre, v_total, jsonb_array_length(v_new->'questions')));
+      else
+        insert into _0080_estado values ('NO TOCADO', c.name,
+          format('%s (%s): tiene %s preguntas propias del tutor y %s del banco anterior. Cámbialas desde el editor de ruta ("Elegir del banco").',
+                 m.title, v_nombre, v_total - v_viejas - v_nuevas, v_viejas));
+      end if;
+    end loop;
+  end loop;
+end $$;
+
+select estado, curso, detalle from _0080_estado order by estado, curso;
+`
+writeMigration('0080_rondas_matematicas_nuevo_banco.sql', sql80)

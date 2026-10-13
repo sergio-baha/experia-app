@@ -113,30 +113,46 @@ def stem_text(stem):
 items = []
 
 # ───────────── MATEMÁTICAS ─────────────
+# 50 preguntas (oct 2026). Sin justificaciones: la clave sale de la tabla final
+# (dos pares Pregunta | Respuesta por fila) y las explicaciones las escribe
+# curate.py. Los bloques "RESPONDE LAS PREGUNTAS 4 A 6…" traen información
+# compartida (texto + tabla): se guardan como texto de apoyo (mpassages).
 ml = lines('mate.txt')
-blocks, cur, num = [], None, None
+blocks, cur, num, mpassages, ctx = [], None, None, [], None
 for l in ml:
-    m = re.match(r'^Pregunta (\d+)\s*$', l.strip())
+    s = l.strip()
+    if s.startswith('TABLA DE RESPUESTAS'):
+        break
+    mc = re.match(r'^RESPONDE LAS PREGUNTAS (\d+) A (\d+)', s)
+    if mc:
+        if cur is not None:
+            blocks.append((num, cur)); cur = None
+        ctx = dict(id=len(mpassages), head=s, lo=int(mc.group(1)), hi=int(mc.group(2)), lines=[])
+        mpassages.append(ctx)
+        continue
+    m = re.match(r'^Pregunta (\d+)\s*$', s)
     if m:
         if cur is not None:
             blocks.append((num, cur))
         num, cur = int(m.group(1)), []
         continue
-    if l.startswith('Justificación'):
-        blocks.append((num, cur)); cur = None
-        break
     if cur is not None:
         cur.append(l)
-just = {}
-for l in ml:
-    m = re.search(r'Pregunta (\d+) \(([A-D])\):\s*(.*)$', l)
-    if m:
-        just[int(m.group(1))] = (m.group(2), m.group(3).strip())
+    elif ctx is not None:
+        ctx['lines'].append(l)
+if cur is not None:
+    blocks.append((num, cur))
+mkeys = {}
+for r in table_after(ml, next(i for i, l in enumerate(ml) if l.startswith('TABLA DE RESPUESTAS'))):
+    for k in range(0, len(r) - 1, 2):
+        if r[k].isdigit():
+            mkeys[int(r[k])] = r[k + 1]
+assert sorted(mkeys) == [n for n, _ in blocks], 'la tabla de respuestas no cuadra con las preguntas'
 for n, b in blocks:
     stem, opts, imgs = split_q(b)
-    letter, exp = just[n]
+    mp = next((p['id'] for p in mpassages if p['lo'] <= n <= p['hi']), None)
     items.append(dict(src='mat', set=1, num=n, stem=stem_text(stem), options=opts,
-                      correct='ABCD'.index(letter), explanation=exp, images=imgs))
+                      correct='ABCD'.index(mkeys[n]), explanation='', images=imgs, mpassage=mp))
 
 # ───────────── CIENCIAS ─────────────
 cl = lines('ciencias.txt')
@@ -304,7 +320,13 @@ for p in passages:
             body.append(t)
     pjson.append(dict(id=p['id'], set=p['set'], head=p['head'], body=body, images=imgs))
 
-json.dump(dict(items=items, passages=pjson), open(os.path.join(S, 'draft.json'), 'w', encoding='utf-8'),
+mpjson = []
+for p in mpassages:
+    imgs = [im for raw in p['lines'] for im in IMG.findall(raw)]
+    body = [clean(IMG.sub('', raw)) for raw in p['lines']]
+    mpjson.append(dict(id=p['id'], head=p['head'], body=[t for t in body if t], images=imgs))
+
+json.dump(dict(items=items, passages=pjson, mpassages=mpjson), open(os.path.join(S, 'draft.json'), 'w', encoding='utf-8'),
           ensure_ascii=False, indent=1)
 from collections import Counter
 print(Counter((i['src'], i['set']) for i in items))

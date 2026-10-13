@@ -51,6 +51,7 @@ export const bankToModuleQuestion = (q, bank) => {
     hint: q.hint, difficulty: q.difficulty, timeLimit: q.timeLimit,
   }
   if (q.image) out.image = q.image
+  if (q.optionImages) out.optionImages = [...q.optionImages]
   if (q.explanation) out.explanation = q.explanation
   if (q.passageId && bank?.passages?.[q.passageId]) out.passage = bank.passages[q.passageId]
   return out

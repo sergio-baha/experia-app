@@ -56,6 +56,7 @@ const BankCard = ({ q, n, passage, inModule, usedIn, onToggle }) => {
               {q.options.map((o, i) => (
                 <div key={i} style={{ fontSize: 12.5, color: i === q.correct ? 'var(--success)' : 'var(--text-sec)', fontWeight: i === q.correct ? 700 : 500 }}>
                   {String.fromCharCode(65 + i)}) <RichText>{o}</RichText>{i === q.correct && ' ✓'}
+                  {q.optionImages?.[i] && <img src={q.optionImages[i]} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 120, objectFit: 'contain', margin: '2px 0 4px 18px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }} />}
                 </div>
               ))}
               <div style={{ fontSize: 12, color: 'var(--orange)', marginTop: 4 }}>💡 <b>Pista:</b> {q.hint}</div>
