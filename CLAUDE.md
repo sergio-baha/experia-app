@@ -785,6 +785,8 @@ propia versión del curso (fork: `courses.parent_course_id` + `institution_id`).
   (`courses.version_note`: "jornada única", "grupos grandes"…). Acciones:
   👁 vista previa (`RoutePreviewModal` con lo publicado), 📝 nota, 📋 usar en
   otro colegio y ⭐ guardar como plantilla. Solo dentro del mismo curso.
+  Filtro **"Solo las mías"** (por defecto para el tutor): sus plantillas y las
+  versiones de sus colegios; la ruta base siempre se ve. El admin ve todas.
   - **Plantilla** = fila de `courses` con `is_template = true`,
     `parent_course_id` = curso base e `institution_id` NULL (constraint
     `courses_template_shape`). Como la resolución del estudiante busca la

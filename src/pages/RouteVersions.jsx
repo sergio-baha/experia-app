@@ -60,10 +60,15 @@ const RouteVersions = () => {
   }, [baseCourses]) // eslint-disable-line react-hooks/exhaustive-deps
   const base = baseCourses.find(c => c.id === baseId) || null
 
+  // "Solo las mías" (por defecto para el tutor): sus plantillas y las versiones
+  // de sus colegios. La ruta base siempre se muestra: es el punto de partida.
+  const [onlyMine, setOnlyMine] = React.useState(!isAdmin)
+  const isMine = (c) => c.is_template ? c.owner_id === user?.id : myInstIds.has(c.institution_id)
+
   const instName = (id) => institutions.find(i => i.id === id)?.name || 'Colegio'
   const versions = React.useMemo(() => {
     if (!base) return []
-    const family = courses.filter(c => c.parent_course_id === base.id && c.is_active)
+    const family = courses.filter(c => c.parent_course_id === base.id && c.is_active && (!onlyMine || isMine(c)))
     const templates = family.filter(c => c.is_template).sort((a, b) => a.name.localeCompare(b.name))
     const schools = family.filter(c => !c.is_template)
       .sort((a, b) => (myInstIds.has(b.institution_id) - myInstIds.has(a.institution_id)) || instName(a.institution_id).localeCompare(instName(b.institution_id)))
@@ -72,7 +77,7 @@ const RouteVersions = () => {
       ...templates.map(c => ({ kind: 'template', course: c, title: c.name, icon: '⭐' })),
       ...schools.map(c => ({ kind: 'school', course: c, title: instName(c.institution_id), icon: '🏫', mine: myInstIds.has(c.institution_id) })),
     ]
-  }, [base, courses, myInstIds, institutions]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [base, courses, myInstIds, institutions, onlyMine]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resumen de módulos de cada versión (cuántos, última modificación, actividad
   // de apertura / pausa activa) para compararlas sin abrirlas.
@@ -203,8 +208,19 @@ const RouteVersions = () => {
             {baseCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        {!isAdmin && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600, color: 'var(--dark)', cursor: 'pointer', paddingBottom: 9 }}>
+            <input type="checkbox" checked={onlyMine} onChange={e => setOnlyMine(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--orange)' }} />
+            Solo las mías
+          </label>
+        )}
         {msg && <span style={{ fontSize: 13, fontWeight: 600, color: msg.startsWith('⚠️') ? 'var(--error)' : 'var(--success)' }}>{msg}</span>}
       </div>
+      {onlyMine && versions.length === 1 && (
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+          Aún no tienes versiones propias de este curso. Guarda una como plantilla (⭐) o desmarca "Solo las mías" para ver las de otros colegios.
+        </p>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
         {versions.map(v => {
