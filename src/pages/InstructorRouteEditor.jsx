@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  useStore, nav,
+  useStore, nav, XS,
   forkCourseForInstitution, loadCourseForEditing, loadModulesForImport,
   saveCourseDraft, discardCourseDraft, publishCourseModules,
   getCourseDisplayName, generatePresenceCode,
@@ -184,7 +184,7 @@ const AvailabilityForm = ({ mod, onSave, onCancel }) => {
 // ─── Modo Curso: edita los módulos reales de la copia del tutor ───────────────
 const EMPTY_CERT_CONFIG = { enabled: false, title: '', achievementText: '', signatoryName: '', signatoryRole: '', hours: '' }
 
-const CourseEditor = ({ courseId, courseName: initialName, expiresAt, institutionName, onBack, onDirtyChange }) => {
+const CourseEditor = ({ courseId, courseName: initialName, expiresAt, institutionName, onBack, onDirtyChange, importFrom }) => {
   const isMobile = useMobile()
   const courses  = useStore(s => s.courses || [])
   const institutions = useStore(s => s.institutions || [])
@@ -243,10 +243,14 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, institutio
     const parentId = courseRow?.parent_course_id
     if (!parentId) return []
     const parent = courses.find(c => c.id === parentId && c.is_active)
-    const parentOption = parent ? [{ ...parent, institutionName: 'la ruta base (curso original)' }] : []
+    const parentOption = parent ? [{ ...parent, institutionName: 'la ruta base (curso original)', label: 'La ruta base (curso original)' }] : []
     const siblings = courses
       .filter(c => c.id !== courseId && c.parent_course_id === parentId && c.is_active)
-      .map(c => ({ ...c, institutionName: institutions.find(i => i.id === c.institution_id)?.name || 'Otro colegio' }))
+      .map(c => {
+        // Plantillas (0082): rutas guardadas con nombre propio, sin colegio.
+        const institutionName = c.is_template ? `la plantilla «${c.name}»` : institutions.find(i => i.id === c.institution_id)?.name || 'Otro colegio'
+        return { ...c, institutionName, label: c.is_template ? `⭐ Plantilla «${c.name}»` : `Versión de ${institutionName}` }
+      })
     return [...parentOption, ...siblings]
   }, [courses, institutions, courseId, courseRow])
 
@@ -261,6 +265,15 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, institutio
       setCertConfig(cc || EMPTY_CERT_CONFIG)
       markClean(modules, name, cc || EMPTY_CERT_CONFIG)
       setLoading(false)
+      // Viene de "Versiones de ruta → Usar en otro colegio": carga esa ruta
+      // como cambio SIN guardar, igual que "📥 Importar de otro colegio".
+      if (importFrom?.id) {
+        loadModulesForImport(importFrom.id).then(({ modules: imported, error: ie }) => {
+          if (ie) { setSavedMsg('⚠️ ' + ie); return }
+          setModuleList(imported)
+          setSavedMsg(`📥 Ruta cargada de ${importFrom.label || 'otra versión'} — revísala y luego Guarda borrador o Publica`)
+        })
+      }
     })
   }, [courseId])
 
@@ -672,7 +685,7 @@ const CourseEditor = ({ courseId, courseName: initialName, expiresAt, institutio
         <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .8, display: 'block', marginBottom: 5 }}>Versión a importar</label>
         <select value={importSourceId} onChange={e => setImportSourceId(e.target.value)}
           style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: '1.5px solid var(--border)', fontFamily: 'var(--font)', fontSize: 14, outline: 'none', background: 'var(--white)', boxSizing: 'border-box', marginBottom: 16 }}>
-          {importableForks.map(f => <option key={f.id} value={f.id}>Versión de {f.institutionName}</option>)}
+          {importableForks.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" full onClick={() => setShowImport(false)}>Cancelar</Btn>
@@ -837,7 +850,18 @@ const InstructorRouteEditor = () => {
   }, [myInstitutions])
 
   // ── Modo curso (fork activo) ──
-  const [activeFork, setActiveFork] = React.useState(null) // { id, name }
+  const [activeFork, setActiveFork] = React.useState(null) // { id, name, importFrom? }
+
+  // Llegada desde "Versiones de ruta": abre la versión de ese colegio y, si se
+  // pidió, carga otra ruta encima (sin guardar) para revisarla y publicarla.
+  const routeIntent = useStore(s => s.routeEditorIntent)
+  React.useEffect(() => {
+    if (!routeIntent) return
+    XS.set({ routeEditorIntent: null })
+    setRouteInstitution(routeIntent.institutionId)
+    setSelectedCourseId(routeIntent.courseId)
+    setActiveFork({ id: routeIntent.forkId, name: routeIntent.forkName, importFrom: routeIntent.importFrom || null })
+  }, [routeIntent])
 
   // ── Selector de curso (dentro del colegio) ──
   const [selectedCourseId, setSelectedCourseId] = React.useState('')
@@ -889,7 +913,7 @@ const InstructorRouteEditor = () => {
     if (!selectedCourseId || !routeInstitution) return []
     return courses
       .filter(c => c.parent_course_id === selectedCourseId && c.institution_id !== routeInstitution && c.is_active)
-      .map(c => ({ ...c, institutionName: institutions.find(i => i.id === c.institution_id)?.name || 'Otro colegio' }))
+      .map(c => ({ ...c, institutionName: c.is_template ? `la plantilla «${c.name}»` : institutions.find(i => i.id === c.institution_id)?.name || 'Otro colegio' }))
   }, [courses, institutions, selectedCourseId, routeInstitution])
 
   const [cloneSourceId, setCloneSourceId] = React.useState('')
@@ -974,12 +998,14 @@ const InstructorRouteEditor = () => {
       ...schoolOptions
         .filter(o => o.fork && o.fork.id !== activeFork.id)
         .map(o => ({ id: o.fork.id, label: `📋 La ruta de ${o.inst.name}` })),
+      ...courses.filter(c => c.is_template && c.parent_course_id === selectedCourseId && c.is_active)
+        .map(c => ({ id: c.id, label: `⭐ Plantilla «${c.name}»` })),
     ]
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <SchoolSwitcher options={schoolOptions} currentId={routeInstitution} isMobile={isMobile} onPick={goToSchool} />
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CourseEditor key={activeFork.id} courseId={activeFork.id} courseName={activeFork.name}
+          <CourseEditor key={activeFork.id} courseId={activeFork.id} courseName={activeFork.name} importFrom={activeFork.importFrom}
             expiresAt={activeForkExpiry} institutionName={currentInst?.name}
             onDirtyChange={setEditorDirty}
             onBack={() => { if (confirmLeave()) { setEditorDirty(false); setActiveFork(null) } }} />

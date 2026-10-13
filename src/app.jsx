@@ -79,6 +79,7 @@ const StudentProductUpload  = React.lazy(() => import('./pages/Grid.jsx'))
 const CourseCertificatePage = React.lazy(() => import('./pages/CourseCertificatePage.jsx'))
 const InstructorDashboard   = React.lazy(() => import('./pages/InstructorDashboard.jsx'))
 const InstructorRouteEditor = React.lazy(() => import('./pages/InstructorRouteEditor.jsx'))
+const RouteVersionsPage = React.lazy(() => import('./pages/RouteVersions.jsx'))
 const AdminAnalytics        = React.lazy(() => import('./pages/AdminAnalytics.jsx'))
 const AdminCourses          = React.lazy(() => import('./pages/AdminCourses.jsx'))
 const InstructorStudentView = React.lazy(() => import('./pages/InstructorStudentView.jsx'))
@@ -271,6 +272,7 @@ const App = () => {
         case 'admin-schools':    return <SchoolsAdminPage />;
         case 'admin-analytics':  return <AdminAnalytics />;
         case 'instructor-items': return <ItemAnalysisPage />;
+        case 'route-versions':   return <RouteVersionsPage />;
         case 'closing-record':   return <ClosingRecordPage />;
         case 'clone-groups':     return <CloneGroupsPage />;
         case 'live-host':        return <LiveHostPage />;
@@ -291,6 +293,7 @@ const App = () => {
         case 'instructor-stats': return <InstructorStatsPage />;
         case 'instructor-items': return <ItemAnalysisPage />;
         case 'instructor-route': return <InstructorRouteEditor />;
+        case 'route-versions':   return <RouteVersionsPage />;
         case 'closing-record':   return <ClosingRecordPage />;
         case 'clone-groups':     return <CloneGroupsPage />;
         case 'live-host':        return <LiveHostPage />;

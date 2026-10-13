@@ -2062,24 +2062,73 @@ const forkCourseForInstitution = async (courseId, institutionId, sourceCourseId)
   // jamás — el progreso del estudiante nunca podrá contener esos ids viejos.
   // Se clona desde sourceCourseId si se indicó (otro fork ya editado), o del
   // curso base por defecto.
-  const cloneFromId = sourceCourseId || courseId;
-  const { data: modules } = await supabase.from('course_modules')
-    .select('*').eq('course_id', cloneFromId).order('"order"');
-  if (modules?.length) {
-    const idMap = new Map(); // id en el curso padre -> id nuevo en el fork
-    const cloned = modules.map(({ id: oldId, course_id: _cid, created_at: _ca, updated_at: _ua, ...rest }) => {
-      const newId = crypto.randomUUID();
-      idMap.set(oldId, newId);
-      return { ...rest, id: newId, course_id: copy.id };
-    });
-    cloned.forEach(m => {
-      if (m.requirements?.length) m.requirements = m.requirements.map(r => idMap.get(r)).filter(Boolean);
-    });
-    await supabase.from('course_modules').insert(cloned);
-  }
+  await cloneCourseModules(sourceCourseId || courseId, copy.id);
 
   await loadCourses();
   return { id: copy.id, name: copy.name, isNew: true };
+};
+
+// Copia los módulos PUBLICADOS de un curso a otro con ids nuevos, remapeando
+// requirements (ver el comentario de forkCourseForInstitution).
+const cloneCourseModules = async (fromCourseId, toCourseId) => {
+  const { data: modules, error } = await supabase.from('course_modules')
+    .select('*').eq('course_id', fromCourseId).order('"order"');
+  if (error) return { error: error.message };
+  if (!modules?.length) return { count: 0 };
+  const idMap = new Map(); // id en el origen -> id nuevo en el destino
+  const cloned = modules.map(({ id: oldId, course_id: _cid, created_at: _ca, updated_at: _ua, ...rest }) => {
+    const newId = crypto.randomUUID();
+    idMap.set(oldId, newId);
+    return { ...rest, id: newId, course_id: toCourseId };
+  });
+  cloned.forEach(m => {
+    if (m.requirements?.length) m.requirements = m.requirements.map(r => idMap.get(r)).filter(Boolean);
+  });
+  const { error: ie } = await supabase.from('course_modules').insert(cloned);
+  return ie ? { error: ie.message } : { count: cloned.length };
+};
+
+// ── Versiones de ruta (página route-versions, migración 0082) ────────────────
+// Plantilla = ruta guardada con nombre propio, sin colegio (is_template,
+// institution_id NULL): ningún estudiante la recibe, solo sirve de origen
+// para crear o reemplazar la versión de un colegio.
+const saveRouteTemplate = async (sourceCourseId, baseCourseId, name, note) => {
+  const { user, courses } = XS.get();
+  if (!user?.id || !sourceCourseId || !baseCourseId || !name?.trim()) return { error: 'Faltan datos' };
+  const base = (courses || []).find(c => c.id === baseCourseId);
+  const { data: tpl, error } = await supabase.from('courses').insert({
+    name: name.trim(), version_note: note?.trim() || null, is_template: true,
+    description: base?.description, cover_image: base?.cover_image, color: base?.color,
+    theme: base?.theme, area_id: base?.area_id, is_active: true,
+    owner_id: user.id, parent_course_id: baseCourseId, institution_id: null,
+  }).select().single();
+  if (error || !tpl) {
+    return { error: /is_template|version_note/.test(error?.message || '')
+      ? 'Falta aplicar la migración 0082 en Supabase.' : (error?.message || 'No se pudo crear la plantilla') };
+  }
+  const r = await cloneCourseModules(sourceCourseId, tpl.id);
+  if (r.error) {
+    await supabase.from('courses').delete().eq('id', tpl.id);
+    return { error: r.error };
+  }
+  await loadCourses();
+  return { id: tpl.id };
+};
+
+const deleteRouteTemplate = async (templateId) => {
+  const { error } = await supabase.from('courses').delete().eq('id', templateId).eq('is_template', true);
+  if (error) return { error: error.message };
+  await loadCourses();
+  return {};
+};
+
+const setCourseVersionNote = async (courseId, note) => {
+  const value = note?.trim() || null;
+  const { data, error } = await supabase.from('courses').update({ version_note: value }).eq('id', courseId).select('id');
+  if (error) return { error: /version_note/.test(error.message) ? 'Falta aplicar la migración 0082 en Supabase.' : error.message };
+  if (!data?.length) return { error: 'No tienes permiso para editar la nota de esta versión.' };
+  XS.set(s => ({ courses: (s.courses || []).map(c => c.id === courseId ? { ...c, version_note: value } : c) }));
+  return {};
 };
 
 // Importa los módulos PUBLICADOS de OTRO curso (típicamente el fork de otro
@@ -2556,6 +2605,7 @@ export {
   loadUserCourses, setUserCourseAccess, setUserCourseAccessBulk, allowedCourseIds,
   loadCourseModules, enrollInCourse, dbModToAppMod, publishRouteToCourse, switchCourse,
   forkCourseForInstitution, loadCourseForEditing, loadModulesForImport, saveCourseModules, resolveCourseForStudent,
+  saveRouteTemplate, deleteRouteTemplate, setCourseVersionNote,
   saveCourseDraft, discardCourseDraft, publishCourseModules,
   applyInitialHash, markOnboarded, claimOnboardingBonus, awardForumParticipation,
   hashFor, issueCertificate, getActiveCourseTheme, reactCharacter,

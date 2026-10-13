@@ -40,6 +40,7 @@ const Sidebar = React.memo(({ mobileOpen, onMobileClose }) => {
     { key: 'instructor-stats',     label: 'Estadísticas', icon: <BarIc s={19} />,  active: ['instructor-stats'] },
     { key: 'instructor-items',     label: 'Análisis de ítems', icon: <TargetIc s={19} />, active: ['instructor-items'] },
     { key: 'instructor-route',     label: 'Ruta',         icon: <MapIc s={19} />,  active: ['instructor-route'] },
+    { key: 'route-versions',       label: 'Versiones de ruta', icon: <BookIc s={19} />, active: ['route-versions'] },
     { key: 'live-host',            label: 'Aula en Vivo', icon: <GameIc s={19} />, active: ['live-host'] },
     { key: 'forum',                label: 'Comunidad',    icon: <MsgIc s={19} />,  active: ['forum'] },
     { key: 'profile',              label: 'Perfil',       icon: <UserIc s={19} />, active: ['profile'] },
@@ -50,6 +51,7 @@ const Sidebar = React.memo(({ mobileOpen, onMobileClose }) => {
     { key: 'admin-schools',    label: 'Colegios',   icon: <SchoolIc s={19} />, active: ['admin-schools'] },
     { key: 'admin-analytics',  label: 'Analítica',  icon: <BarIc s={19} />,   active: ['admin-analytics'] },
     { key: 'instructor-items', label: 'Análisis de ítems', icon: <TargetIc s={19} />, active: ['instructor-items'] },
+    { key: 'route-versions',   label: 'Versiones de ruta', icon: <BookIc s={19} />, active: ['route-versions'] },
     { key: 'forum',            label: 'Comunidad',  icon: <MsgIc s={19} />,   active: ['forum'] },
     { key: 'profile',          label: 'Perfil',     icon: <UserIc s={19} />,  active: ['profile'] },
   ];

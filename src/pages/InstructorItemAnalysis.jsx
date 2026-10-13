@@ -144,7 +144,7 @@ const InstructorItemAnalysis = () => {
       .filter(r => (!instId || r.institution_id === instId) && r.is_active)
       .map(r => r.course_id)
     const base = courses.filter(c => !c.parent_course_id && (linked.includes(c.id) || (!instId && !myInstitutions.length)))
-    const forks = courses.filter(c => c.parent_course_id && c.is_active &&
+    const forks = courses.filter(c => c.parent_course_id && c.is_active && !c.is_template &&
       (!instId || c.institution_id === instId) &&
       (linked.includes(c.parent_course_id) || !instId))
     return [

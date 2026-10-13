@@ -778,6 +778,26 @@ propia versión del curso (fork: `courses.parent_course_id` + `institution_id`).
   causa de "solo me aparece un colegio". Se asignan en Admin → Colegios.
   `scripts/demo_tutor_dos_colegios.sql` arma un colegio de prueba sin
   estudiantes para demostrarlo.
+- **Versiones de ruta (page `route-versions`, `RouteVersions.jsx`, migración
+  `0082`).** Biblioteca por curso, para tutores y admin: la ruta base, la
+  versión de cada colegio y las **plantillas**. Cada tarjeta muestra módulos,
+  última modificación, actividades de apertura/pausa y una **nota**
+  (`courses.version_note`: "jornada única", "grupos grandes"…). Acciones:
+  👁 vista previa (`RoutePreviewModal` con lo publicado), 📝 nota, 📋 usar en
+  otro colegio y ⭐ guardar como plantilla. Solo dentro del mismo curso.
+  - **Plantilla** = fila de `courses` con `is_template = true`,
+    `parent_course_id` = curso base e `institution_id` NULL (constraint
+    `courses_template_shape`). Como la resolución del estudiante busca la
+    versión **por colegio**, ninguna plantilla llega nunca a un estudiante. El
+    tutor maneja las suyas (RLS de 0082); leer las de otros ya lo permitía 0041.
+    Se excluyen del análisis de ítems y aparecen como "⭐ Plantilla «…»" en los
+    "Copiar desde" / "📥 Importar" del editor.
+  - **Usar en otro colegio:** si el colegio no tiene versión, se crea con
+    `forkCourseForInstitution` desde esa ruta. Si ya tiene, **no se pisa**: se
+    abre su editor con la ruta cargada como cambio sin guardar
+    (`XS.routeEditorIntent` → `CourseEditor importFrom`), igual que "📥 Importar",
+    y el tutor revisa y publica. El admin no tiene editor de ruta: solo crea
+    versiones nuevas.
 
 ---
 
@@ -816,6 +836,7 @@ src/
     ├── map.jsx, lesson.jsx, challenges.jsx
     ├── Grid.jsx, profile.jsx
     ├── InstructorItemAnalysis.jsx # Análisis de ítems: dificultad, discriminación, distractores
+    ├── RouteVersions.jsx       # Versiones de ruta: base, colegios y plantillas — nota, vista previa, usar en otro colegio
     ├── ClosingRecord.jsx       # Acta de cierre: asistencia + observaciones → PDF (solo tutor/admin)
     ├── CloneAttendance.jsx     # PILOTO clon: el docente marca asistencia de SUS alumnos → acta
     ├── CloneEffectiveness.jsx  # PILOTO clon: tabla de efectividad (formulario + Excel) → informe
@@ -965,7 +986,8 @@ VITE_SUPABASE_ANON_KEY=eyJ...
    - Aplicada `0076` (resultados Saber del colegio en el módulo 3, datos sintéticos, §15) y su refuerzo `0077` (familia completa de cada curso + diagnóstico por colegio).
    - Aplicada `0078` (rondas de Ciencias Sociales en los módulos 4 y 6, §14).
    - Aplicada `0079` (la sección de resultados Saber va siempre en el módulo 3; 0077 la dejó en el 7 de Sociales, §15).
-   - **Sin aplicar:** `0081` (llena los módulos que aún dicen "Pendiente" —apertura 1, estructura Saber 2, pausa activa 5— copiando, dentro de cada familia de curso y por título, el módulo ya lleno de otra copia). Causa: 0064–0067 y 0069 solo llenaron UNA copia por colegio de cada asignatura; la **ruta base** (la que ve un colegio sin versión propia, p. ej. CEINFES) quedó con "Pendiente". Probada con `scripts/test-migraciones/run-pendientes-base.mjs`.
+   - **Sin aplicar:** `0082` (biblioteca de versiones de ruta: `courses.version_note`, `courses.is_template` + RLS de plantillas, §16). Probada con `scripts/test-migraciones/run-versiones-ruta.mjs`. Sin ella la página carga, pero guardar notas o plantillas avisa que falta la migración.
+   - Aplicada `0081` (llena los módulos que aún dicen "Pendiente" —apertura 1, estructura Saber 2, pausa activa 5— copiando, dentro de cada familia de curso y por título, el módulo ya lleno de otra copia). Causa: 0064–0067 y 0069 solo llenaron UNA copia por colegio de cada asignatura; la **ruta base** (la que ve un colegio sin versión propia, p. ej. CEINFES) quedó con "Pendiente". Probada con `scripts/test-migraciones/run-pendientes-base.mjs`.
    - Aplicada `0080` (oct 2026: Matemáticas, las rondas de los módulos 4 y 6 pasan al banco nuevo de 50 preguntas, §14; además el snapshot en vivo lleva `optionImages`, §5). Probada con `scripts/test-migraciones/run-rondas-matematicas.mjs`.
    - ⚠️ **Rutas de las 4 asignaturas = SOLO sus 7 módulos** (oct 2026): 1 apertura (rompehielos/físicas) · 2 estructura Saber · 3 bitácora · 4 primera ronda · 5 pausa activa (solo físicas) · 6 ronda final · 7 cierre. No agregar retos "Pregunta en Vivo" por migración: las preguntas de la clase en vivo las sube el equipo académico desde el editor de ruta.
 7. **CLI de Supabase inoperante:** sin `supabase/config.toml`, `db diff --linked` y `db push` fallan. Las migraciones se corren a mano; probarlas antes con `scripts/test-migraciones/`
