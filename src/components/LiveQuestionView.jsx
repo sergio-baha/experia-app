@@ -16,9 +16,9 @@ const MyAvatar = ({ cfg, size, expression }) => (cfg
   : null)
 // =============================================
 // EXPERIA — Modo Aula en Vivo: ciclo de pregunta/revelado/explicación,
-// repetido pregunta por pregunta, y podio al final (sep 2026: se quitó la
-// tabla de posiciones intermedia — el ranking solo se muestra en el podio,
-// para no repartir la atención entre competir y entender cada pregunta).
+// repetido pregunta por pregunta, y podio al final. El ranking parcial va
+// debajo del revelado/explicación (oct 2026), no como fase propia: la fase
+// `leaderboard` se quitó en sep 2026 porque competía con la explicación.
 // Compartido entre la página pública del estudiante (LivePlay.jsx) y la
 // Clase en Vivo Guiada (GuidedClassView.jsx). Sirve tanto para quiz
 // (con respuesta correcta y puntaje) como para poll/encuesta (sin
@@ -395,7 +395,23 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
             {session.current_reveal.explanationImage && <img src={session.current_reveal.explanationImage} alt="" style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 10, marginTop: 10 }} />}
           </div>
         )}
-      </div></Center>
+      </div>
+      {/* Ranking parcial: va DEBAJO del resultado y la explicación, nunca
+          como pantalla aparte, para que no le quite el foco a entender la
+          pregunta (por eso se quitó en sep 2026 la fase `leaderboard`). */}
+      {!isPoll && parts.some(p => (p.score || 0) > 0) && (
+        <div style={{ ...cardStyle, marginTop: 16, padding: '18px 20px', animation: 'fadeUp .4s ease both' }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--dark)', marginBottom: 12 }}>🏆 Ranking de la clase</div>
+          <Ranking list={parts.slice(0, 5)} meId={participant.id} />
+          {myRank > 5 && (
+            <div style={{ marginTop: 10, textAlign: 'center', padding: '10px', borderRadius: 12, background: 'var(--orange-bg)' }}>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>Tu posición: </span>
+              <b style={{ color: 'var(--orange)' }}>#{myRank} · {me?.score || 0} pts</b>
+            </div>
+          )}
+        </div>
+      )}
+      </Center>
     )
   }
 

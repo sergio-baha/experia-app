@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient.js'
 import { Btn, Confetti, RichText, QuestionText } from '../components/ui.jsx'
 import { LessonBody } from './lesson.jsx'
 import { ActivityPicker } from '../components/ActivityCard.jsx'
+import { LiveSequence, LiveRanking } from '../components/LiveSequence.jsx'
 import { resolveActivity, normalizeCustom, CUSTOM_ID, ACTIVITY_BANKS } from '../lib/activityBank.js'
 import { CustomActivityForm } from '../components/CustomActivityForm.jsx'
 import { isQuestionRound, BANK_AREAS, ROUND_LABELS } from '../lib/questionBankMeta.js'
@@ -24,6 +25,10 @@ import { primeAudio, isMuted, toggleMute, sStart, sReveal, sPodium } from '../li
 const PROD_BASE = 'https://experia-app.pages.dev'
 const OPT_COLORS = ['#E8732C', '#3B82F6', '#10B981', '#A855F7', '#F59E0B', '#EF4444']
 const HOST_KEY = 'experia:live-host'
+// Solo los módulos habilitados: son los mismos que recibe el estudiante
+// (get_course_modules_for_student filtra is_enabled), así la secuencia
+// proyectada y la de cada dispositivo tienen los mismos pasos.
+const enabledOnly = (rows) => (rows || []).filter(m => m.is_enabled !== false)
 const TYPE_LABEL = { lesson: '📖 Lección', challenge: '🎯 Reto', evaluation: '🎯 Evaluación', final_delivery: '🏁 Entrega final' }
 // Las rondas del banco (módulos 4 y 6) son un quiz por dentro, pero en la ruta
 // siguen siendo un módulo: se rotulan aparte para no llamarlas "reto".
@@ -322,7 +327,7 @@ const Launcher = ({ onStarted }) => {
       if (!alive || !res) return
       const { data, error } = res
       if (error) setErr('No se pudo cargar la ruta: ' + error.message)
-      setModuleList(data || [])
+      setModuleList(enabledOnly(data))
       setLoading(false)
     })
     return () => { alive = false }
@@ -484,8 +489,8 @@ const Control = ({ session: initial, moduleList, onExit }) => {
 
   // Siguiente pregunta del módulo actual, o siguiente módulo / fin de clase si
   // era la última pregunta. Se llama desde reveal/explanation de cualquier
-  // quiz o poll — no hay tabla de posiciones intermedia, el ranking vive
-  // solo en el podio final.
+  // quiz o poll — no hay fase de tabla de posiciones: el ranking parcial se
+  // muestra debajo del contenido (LiveRanking), sin detener la clase.
   const advanceQuestionOrModule = () => {
     if (idx < total - 1) return run(liveGoto(session.id, idx + 1))
     return isLastModule ? finishSession() : gotoModuleIdx(currentIdx + 1)
@@ -503,7 +508,7 @@ const Control = ({ session: initial, moduleList, onExit }) => {
     }
     if (phase === 'lobby') return <Big disabled={total === 0} onClick={() => run(liveGoto(session.id, 0))}>Comenzar {isPoll ? 'encuesta' : isQuestionRound(currentModule) ? 'ronda' : 'quiz'} ▶</Big>
     if (phase === 'question') return <Big onClick={() => run(liveSetPhase(session.id, 'reveal'))}>Mostrar resultados ({answeredCount}/{parts.length})</Big>
-    // Sin tabla de posiciones intermedia (ranking solo al final, en el podio):
+    // Sin fase de tabla de posiciones (el ranking va debajo, siempre visible):
     // de revelado/explicación se avanza directo a la siguiente pregunta o,
     // si era la última, al siguiente módulo / fin de clase.
     if (phase === 'reveal' || phase === 'explanation') {
@@ -524,6 +529,18 @@ const Control = ({ session: initial, moduleList, onExit }) => {
   const joinUrl = `${PROD_BASE}/#/live/${session.code}`
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=0&data=${encodeURIComponent(joinUrl)}`
   const flipMute = () => setMuted(toggleMute())
+
+  // Pantalla completa para proyectar: oculta barras del navegador y del sistema.
+  const [fullscreen, setFullscreen] = React.useState(!!document.fullscreenElement)
+  React.useEffect(() => {
+    const on = () => setFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.()
+    else document.documentElement.requestFullscreen?.().catch(() => {})
+  }
 
   return (
     <div style={{ height: '100%', overflow: 'auto', background: 'var(--bg)' }}>
@@ -549,24 +566,27 @@ const Control = ({ session: initial, moduleList, onExit }) => {
                 borderRadius: 8, padding: '6px 10px', fontSize: 16, fontFamily: 'var(--font)' }}>
               {muted ? '🔇' : '🔊'}
             </button>
+            <button onClick={toggleFullscreen} title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (para proyectar)'}
+              style={{ background: 'rgba(255,255,255,.2)', border: 'none', cursor: 'pointer', color: '#fff', marginLeft: 6,
+                borderRadius: 8, padding: '6px 10px', fontSize: 16, fontFamily: 'var(--font)' }}>
+              {fullscreen ? '🗗' : '⛶'}
+            </button>
           </div>
         </div>
 
-        {/* Posición en la ruta */}
+        {/* Secuencia didáctica: la misma barra que ven los estudiantes. El
+            profesor puede saltar a un paso con clic o moverse con las flechas. */}
         {!showPodium && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <button onClick={() => gotoModuleIdx(currentIdx - 1)} disabled={currentIdx <= 0 || busy} title="Módulo anterior"
-              style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--white)',
-                cursor: currentIdx <= 0 ? 'default' : 'pointer', opacity: currentIdx <= 0 ? .4 : 1, fontSize: 15 }}>←</button>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                Módulo {currentIdx + 1} de {moduleList.length} · {currentModule ? typeLabel(currentModule) : ''}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--dark)' }}>{currentModule?.title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => gotoModuleIdx(currentIdx - 1)} disabled={currentIdx <= 0 || busy} title="Paso anterior"
+              style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', flexShrink: 0,
+                cursor: currentIdx <= 0 ? 'default' : 'pointer', opacity: currentIdx <= 0 ? .4 : 1, fontSize: 16, marginBottom: 18 }}>←</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <LiveSequence modules={moduleList} currentId={session.module_id} onSelect={gotoModuleIdx} disabled={busy} />
             </div>
-            <button onClick={() => gotoModuleIdx(currentIdx + 1)} disabled={isLastModule || busy} title="Módulo siguiente"
-              style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--white)',
-                cursor: isLastModule ? 'default' : 'pointer', opacity: isLastModule ? .4 : 1, fontSize: 15 }}>→</button>
+            <button onClick={() => gotoModuleIdx(currentIdx + 1)} disabled={isLastModule || busy} title="Paso siguiente"
+              style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--white)', flexShrink: 0,
+                cursor: isLastModule ? 'default' : 'pointer', opacity: isLastModule ? .4 : 1, fontSize: 16, marginBottom: 18 }}>→</button>
           </div>
         )}
 
@@ -601,8 +621,8 @@ const Control = ({ session: initial, moduleList, onExit }) => {
             </div>
             <LivePassage passage={localQ?.passage || snapQ.passage} maxHeight="50vh" />
             {(localQ?.image || snapQ.image) && <img src={localQ?.image || snapQ.image} alt="" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, marginBottom: 12, background: '#fff' }} />}
-            <QuestionText as="h2" style={{ fontSize: 20, fontWeight: 800, color: 'var(--dark)', marginBottom: 16, lineHeight: 1.35 }}>{localQ?.question || snapQ.question}</QuestionText>
-            {(localQ?.questionAfter || snapQ.questionAfter) && <RichText as="h2" style={{ fontSize: 20, fontWeight: 800, color: 'var(--dark)', marginBottom: 16, lineHeight: 1.35 }}>{localQ?.questionAfter || snapQ.questionAfter}</RichText>}
+            <QuestionText as="h2" style={{ fontSize: 24, fontWeight: 800, color: 'var(--dark)', marginBottom: 18, lineHeight: 1.35 }}>{localQ?.question || snapQ.question}</QuestionText>
+            {(localQ?.questionAfter || snapQ.questionAfter) && <RichText as="h2" style={{ fontSize: 24, fontWeight: 800, color: 'var(--dark)', marginBottom: 18, lineHeight: 1.35 }}>{localQ?.questionAfter || snapQ.questionAfter}</RichText>}
             {phase === 'question' && (
               <HostHint hint={localQ?.hint || snapQ.hint} startedAt={session.question_started_at}
                 limit={snapQ.time_limit_s || Number(localQ?.timeLimit) || 20} open />
@@ -619,7 +639,7 @@ const Control = ({ session: initial, moduleList, onExit }) => {
                     background: 'var(--white)', display: 'flex', alignItems: 'center', gap: 12 }}>
                     {reveal && <div style={{ position: 'absolute', inset: 0, width: pct + '%', background: isCorrect ? '#DCFCE7' : 'var(--bg-alt)', transition: 'width .4s', zIndex: 0 }} />}
                     <span style={{ position: 'relative', zIndex: 1, width: 26, height: 26, borderRadius: 7, background: OPT_COLORS[i % OPT_COLORS.length], color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{String.fromCharCode(65 + i)}</span>
-                    <span style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: 'var(--dark)' }}>
+                    <span style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0, fontSize: 17, fontWeight: 600, color: 'var(--dark)' }}>
                       <OptionImage src={optionImages?.[i]} />
                       <RichText>{opt}</RichText>{reveal && isCorrect && ' ✓'}
                     </span>
@@ -640,6 +660,15 @@ const Control = ({ session: initial, moduleList, onExit }) => {
                 <RichText as="p" style={{ fontSize: 14, color: 'var(--text-sec)', lineHeight: 1.7, margin: 0 }}>{localQ?.explanation || session.current_reveal?.explanation}</RichText>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Ranking parcial: visible en la pantalla proyectada durante toda la
+            clase, salvo mientras la pregunta está abierta (ahí la atención va
+            a responder). Aparece solo cuando alguien ya sumó puntos. */}
+        {!showPodium && phase !== 'question' && (
+          <div style={{ marginBottom: 20, marginTop: -4 }}>
+            <LiveRanking parts={parts} />
           </div>
         )}
 
@@ -737,7 +766,7 @@ const LiveHost = () => {
             fetchSession(saved.session),
             supabase.from('course_modules').select('*').eq('course_id', saved.courseId).order('"order"'),
           ]).then(([s, { data }]) => {
-            if (s && s.status !== 'ended') { setSession(s); setModuleList(data || []) }
+            if (s && s.status !== 'ended') { setSession(s); setModuleList(enabledOnly(data)) }
             else { try { sessionStorage.removeItem(HOST_KEY) } catch (_) {} }
             setChecked(true)
           })

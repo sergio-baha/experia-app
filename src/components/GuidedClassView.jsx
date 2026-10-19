@@ -3,6 +3,7 @@ import { useStore, selectActiveCourseTheme } from '../store/store.jsx'
 import { LiveQuestionView } from './LiveQuestionView.jsx'
 import { LessonBody } from '../pages/lesson.jsx'
 import { getCharacter } from '../lib/characters.jsx'
+import { LiveSequence } from './LiveSequence.jsx'
 
 // El tutor del curso temático. La vista guiada se renderiza FUERA del shell
 // normal (app.jsx retorna antes de montar <CourseAmbient/>), así que hay que
@@ -17,11 +18,22 @@ const CharacterFloat = React.lazy(() => import('./CharacterBubble.jsx'))
 // en vez de que el contenido se recorte contra #root sin poder bajar.
 // `wide`: módulos con diapositivas (estructura de la Prueba Saber) se ven
 // a casi todo el ancho para que el texto de las imágenes se lea en clase.
-const Shell = ({ children, wide }) => (
-  <div style={{ height: '100vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--bg)' }}>
-    <div style={{ maxWidth: wide ? 1180 : 720, margin: '0 auto', padding: '28px 20px 60px' }}>{children}</div>
-  </div>
-)
+// La barra de la secuencia didáctica llega por contexto (y no como prop)
+// porque LiveQuestionView recibe Shell como `Wrap` y lo usa en cada pantalla:
+// así todas muestran en qué paso va la clase sin tocar ese componente, que
+// también sirve a la página pública del PIN (allí no hay ruta que mostrar).
+const SequenceCtx = React.createContext(null)
+const Shell = ({ children, wide }) => {
+  const sequence = React.useContext(SequenceCtx)
+  return (
+    <div style={{ height: '100vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--bg)' }}>
+      <div style={{ maxWidth: wide ? 1180 : 720, margin: '0 auto', padding: '28px 20px 60px' }}>
+        {sequence}
+        {children}
+      </div>
+    </div>
+  )
+}
 
 // Envuelve cualquier pantalla de la clase con el tutor del curso (si el curso
 // tiene tema). El personaje va en position:fixed, así que no altera el layout.
@@ -59,7 +71,18 @@ const GuidedClassViewInner = ({ guided }) => {
   const ch = theme ? getCharacter(theme) : null
   const tutor = ch?.art ? { name: ch.name } : null
 
+  // Mismo orden que la ruta (y que la barra del profesor)
+  const orderedMods = React.useMemo(
+    () => [...courseModules].sort((a, b) => (a.pos?.y ?? 0) - (b.pos?.y ?? 0)),
+    [courseModules])
+
   if (!session || !participant) return null
+  const sequence = session.status === 'ended' ? null
+    : <LiveSequence modules={orderedMods} currentId={session.module_id} />
+  return <SequenceCtx.Provider value={sequence}>{renderStep(session, participant, currentMod, avatar, tutor)}</SequenceCtx.Provider>
+}
+
+const renderStep = (session, participant, currentMod, avatar, tutor) => {
 
   // Sesión finalizada: LiveQuestionView muestra el podio con confeti; app.jsx
   // detecta status==='ended' y saca al estudiante de vuelta al mapa normal.
