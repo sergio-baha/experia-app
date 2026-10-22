@@ -8,10 +8,12 @@ import { LiveSequence, LiveRanking } from '../components/LiveSequence.jsx'
 import { resolveActivity, normalizeCustom, CUSTOM_ID, ACTIVITY_BANKS } from '../lib/activityBank.js'
 import { CustomActivityForm } from '../components/CustomActivityForm.jsx'
 import { isQuestionRound, BANK_AREAS, ROUND_LABELS } from '../lib/questionBankMeta.js'
-import { LivePassage, hintDelayMs, OptionImage, optionsLayout } from '../components/LiveQuestionView.jsx'
+import { LivePassage, hintDelayMs, OptionImage, optionsLayout, Countdown } from '../components/LiveQuestionView.jsx'
+import { LivePresentation, Podium } from '../components/LivePresentation.jsx'
 import {
   createLiveSession, liveGotoModule, liveCompleteModuleForParticipants,
   liveSetPhase, liveGoto, liveEnd, saveLiveClosingNotes, saveLiveActivityChoice,
+  applyLiveTimeLimit, LIVE_QUESTION_SECONDS, LIVE_TIME_OPTIONS,
   fetchSession, fetchParticipants, fetchAnswerCounts,
   subscribeSession, subscribeParticipants, unsubscribe,
 } from '../lib/liveClient.js'
@@ -25,6 +27,10 @@ import { primeAudio, isMuted, toggleMute, sStart, sReveal, sPodium } from '../li
 const PROD_BASE = 'https://experia-app.pages.dev'
 const OPT_COLORS = ['#E8732C', '#3B82F6', '#10B981', '#A855F7', '#F59E0B', '#EF4444']
 const HOST_KEY = 'experia:live-host'
+const TIME_KEY = 'experia:live-qsecs'      // tiempo por pregunta elegido por el profesor
+const PRESENT_KEY = 'experia:live-present' // '0' = prefiere el panel; por defecto, presentación
+const readLS = (k) => { try { return localStorage.getItem(k) } catch (_) { return null } }
+const writeLS = (k, v) => { try { localStorage.setItem(k, v) } catch (_) {} }
 // Solo los módulos habilitados: son los mismos que recibe el estudiante
 // (get_course_modules_for_student filtra is_enabled), así la secuencia
 // proyectada y la de cada dispositivo tienen los mismos pasos.
@@ -36,19 +42,19 @@ const typeLabel = (m) => (isQuestionRound(m) ? '🎮 Ronda de preguntas' : (TYPE
 
 // Resumen de la ronda en el lobby: cuántas preguntas, de qué asignatura y la
 // frase de apertura del bloque (la guía del módulo se conservó en `content`).
-const RoundIntro = ({ module }) => {
+const RoundIntro = ({ module, seconds }) => {
   const cd = module.challenge_data || {}
   const qs = cd.questions || []
   const area = BANK_AREAS[cd.bank]
   const frase = (module.content || []).find(s => s.title === 'Frase de apertura')?.text
-  const mins = Math.round(qs.reduce((s, q) => s + (Number(q.timeLimit) || 20) + 60, 0) / 60)
+  const mins = Math.round(qs.length * (seconds + 60) / 60)
   return (
     <div style={{ padding: '20px 24px', borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)', marginBottom: 20 }}>
       <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
         🎮 {ROUND_LABELS[cd.bankRound] || 'Ronda de preguntas'} · {area ? `${area.icon} ${area.label}` : ''}
       </div>
       <div style={{ fontSize: 15, color: 'var(--dark)', fontWeight: 700, marginBottom: 6 }}>
-        {qs.length} pregunta{qs.length !== 1 ? 's' : ''} · cerca de {mins} min con la retroalimentación
+        {qs.length} pregunta{qs.length !== 1 ? 's' : ''} · {seconds / 60 >= 1 && seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`} por pregunta · cerca de {mins} min con la retroalimentación
       </div>
       {frase && <p style={{ fontSize: 14, color: 'var(--text-sec)', fontStyle: 'italic', margin: '0 0 10px' }}>{frase}</p>}
       <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
@@ -398,6 +404,31 @@ const Control = ({ session: initial, moduleList, onExit }) => {
   const [counts, setCounts]   = React.useState([])
   const [muted, setMuted]     = React.useState(isMuted())
   const [busy, setBusyGoto]   = React.useState(false)
+  const [qSeconds, setQSeconds] = React.useState(() => Number(readLS(TIME_KEY)) || LIVE_QUESTION_SECONDS)
+  const [presenting, setPresenting] = React.useState(() => readLS(PRESENT_KEY) !== '0')
+  const changeTime = (t) => { setQSeconds(t); writeLS(TIME_KEY, String(t)) }
+  const openPresentation = () => {
+    setPresenting(true); writeLS(PRESENT_KEY, '1')
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {})
+  }
+  const closePresentation = () => {
+    setPresenting(false); writeLS(PRESENT_KEY, '0')
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+  }
+
+  // Mismo tiempo para todas las preguntas del módulo (2 min por defecto): el
+  // snapshot de cada módulo llega con el timeLimit propio de cada pregunta.
+  // Se reaplica cada vez que entra un módulo nuevo o el profesor lo cambia.
+  React.useEffect(() => {
+    const qs = session.questions || []
+    if (session.status === 'ended' || !qs.length) return
+    if (session.time_limit_s === qSeconds && qs.every(q => Number(q.time_limit_s) === qSeconds)) return
+    let alive = true
+    applyLiveTimeLimit(session, qSeconds)
+      .then(s => { if (alive && s) setSession(s) })
+      .catch(e => console.warn('[live] no se pudo fijar el tiempo por pregunta:', e?.message || e))
+    return () => { alive = false }
+  }, [session.id, session.module_id, session.questions, session.time_limit_s, session.status, qSeconds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     let chS, chP
@@ -452,8 +483,13 @@ const Control = ({ session: initial, moduleList, onExit }) => {
   const answeredCount = counts.reduce((a, b) => a + b, 0)
 
   // Ejecuta una RPC de control y muestra el error si lo hubiera (clave para depurar)
+  // Las RPC de control devuelven la sesión: se aplica de inmediato (sin esperar
+  // al realtime) para que un segundo clic o tecla no repita el mismo paso.
   const run = (promise) => Promise.resolve(promise)
-    .then(r => { if (r?.error) alert('Error: ' + r.error.message) })
+    .then(r => {
+      if (r?.error) alert('Error: ' + r.error.message)
+      else if (r?.data?.id === session.id) setSession(r.data)
+    })
     .catch(e => alert('Error: ' + (e?.message || e)))
 
   // Avanza/retrocede al módulo del índice dado en la ruta — otorga XP del
@@ -542,6 +578,34 @@ const Control = ({ session: initial, moduleList, onExit }) => {
     else document.documentElement.requestFullscreen?.().catch(() => {})
   }
 
+  const view = {
+    currentIdx, currentModule, isInteractive, isPoll, isLastModule, phase, idx, total,
+    question: { ...snapQ, ...(localQ || {}), time_limit_s: snapQ.time_limit_s },
+    options, optionImages, correct, hasExplanation,
+    explanation: localQ?.explanation || session.current_reveal?.explanation,
+  }
+  const actions = {
+    gotoModule: gotoModuleIdx,
+    start: () => run(liveGoto(session.id, 0)),
+    reveal: () => run(liveSetPhase(session.id, 'reveal')),
+    explain: () => run(liveSetPhase(session.id, 'explanation')),
+    advance: advanceQuestionOrModule,
+    finish: finishSession,
+  }
+  const hasActivity = currentModule?.type === 'lesson' && (currentModule.content || []).some(s => s.type === 'activity')
+
+  // Modo presentación (por defecto): reemplaza al panel. El panel no se monta
+  // debajo — su selector de actividad aplicaría dos veces la preferencia.
+  if (presenting) return (
+    <>
+      {showPodium && <Confetti />}
+      <LivePresentation session={session} moduleList={moduleList} parts={parts} counts={counts} busy={busy}
+        view={view} actions={actions} qSeconds={qSeconds} onTimeChange={changeTime}
+        muted={muted} onToggleMute={flipMute} onClose={closePresentation}
+        activityChooser={hasActivity ? <ActivityChooser key={currentModule.id} session={session} module={currentModule} onSession={setSession} /> : null} />
+    </>
+  )
+
   return (
     <div style={{ height: '100%', overflow: 'auto', background: 'var(--bg)' }}>
       {showPodium && <Confetti />}
@@ -572,6 +636,18 @@ const Control = ({ session: initial, moduleList, onExit }) => {
               {fullscreen ? '🗗' : '⛶'}
             </button>
           </div>
+        </div>
+
+        {/* Modo presentación + tiempo por pregunta */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+          <Btn variant="gradient" onClick={openPresentation}>🖥️ Modo presentación</Btn>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
+            ⏱ Tiempo por pregunta
+            <select value={qSeconds} onChange={e => changeTime(Number(e.target.value))}
+              style={{ padding: '7px 10px', borderRadius: 10, border: '1.5px solid var(--border)', fontFamily: 'var(--font)', fontSize: 13, background: 'var(--white)', color: 'var(--dark)' }}>
+              {LIVE_TIME_OPTIONS.map(t => <option key={t} value={t}>{t % 60 === 0 ? `${t / 60} min` : `${Math.floor(t / 60)} min ${t % 60} s`}</option>)}
+            </select>
+          </label>
         </div>
 
         {/* Secuencia didáctica: la misma barra que ven los estudiantes. El
@@ -611,7 +687,7 @@ const Control = ({ session: initial, moduleList, onExit }) => {
           )
         )}
 
-        {!showPodium && isInteractive && phase === 'lobby' && isQuestionRound(currentModule) && <RoundIntro module={currentModule} />}
+        {!showPodium && isInteractive && phase === 'lobby' && isQuestionRound(currentModule) && <RoundIntro module={currentModule} seconds={qSeconds} />}
 
         {/* Pregunta actual (vista del profe) */}
         {showQuestion && (
@@ -619,13 +695,14 @@ const Control = ({ session: initial, moduleList, onExit }) => {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
               Pregunta {idx + 1} de {total} {phase !== 'question' && '· Resultados'}
             </div>
+            {phase === 'question' && <Countdown startedAt={session.question_started_at} limit={snapQ.time_limit_s || qSeconds} />}
             <LivePassage passage={localQ?.passage || snapQ.passage} maxHeight="50vh" />
             {(localQ?.image || snapQ.image) && <img src={localQ?.image || snapQ.image} alt="" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, marginBottom: 12, background: '#fff' }} />}
             <QuestionText as="h2" style={{ fontSize: 24, fontWeight: 800, color: 'var(--dark)', marginBottom: 18, lineHeight: 1.35 }}>{localQ?.question || snapQ.question}</QuestionText>
             {(localQ?.questionAfter || snapQ.questionAfter) && <RichText as="h2" style={{ fontSize: 24, fontWeight: 800, color: 'var(--dark)', marginBottom: 18, lineHeight: 1.35 }}>{localQ?.questionAfter || snapQ.questionAfter}</RichText>}
             {phase === 'question' && (
               <HostHint hint={localQ?.hint || snapQ.hint} startedAt={session.question_started_at}
-                limit={snapQ.time_limit_s || Number(localQ?.timeLimit) || 20} open />
+                limit={snapQ.time_limit_s || qSeconds} open />
             )}
             <div style={optionsLayout(optionImages, 10)}>
               {options.map((opt, i) => {
@@ -721,30 +798,6 @@ const Control = ({ session: initial, moduleList, onExit }) => {
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-// Podio animado top-3 (orden visual: 2º, 1º, 3º)
-const Podium = ({ top }) => {
-  const slots = [
-    { p: top[1], place: 2, h: 70, medal: '🥈', color: '#C0C7D1' },
-    { p: top[0], place: 1, h: 100, medal: '🥇', color: '#F4C430' },
-    { p: top[2], place: 3, h: 50, medal: '🥉', color: '#CD7F32' },
-  ]
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 12, margin: '8px 0 22px' }}>
-      {slots.map((s, i) => s.p ? (
-        <div key={i} style={{ flex: 1, maxWidth: 150, textAlign: 'center', animation: `fadeUp .5s ${i * 140}ms ease both` }}>
-          <div style={{ fontSize: 30 }}>{s.medal}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--dark)', margin: '2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.p.nombre}</div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--orange)' }}>{s.p.score} pts</div>
-          <div style={{ height: s.h, borderRadius: '10px 10px 0 0', marginTop: 6,
-            background: s.color,
-            display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 6,
-            color: 'rgba(0,0,0,.45)', fontWeight: 900, fontSize: 18 }}>{s.place}</div>
-        </div>
-      ) : <div key={i} style={{ flex: 1, maxWidth: 150 }} />)}
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import React from 'react'
 import { useStore, selectActiveCourseTheme } from '../store/store.jsx'
-import { LiveQuestionView } from './LiveQuestionView.jsx'
+import { LiveQuestionView, LiveScoreBar } from './LiveQuestionView.jsx'
+import { useLiveParticipants } from '../lib/liveClient.js'
+import { useMobile } from './ui.jsx'
 import { LessonBody } from '../pages/lesson.jsx'
 import { getCharacter } from '../lib/characters.jsx'
 import { LiveSequence } from './LiveSequence.jsx'
@@ -25,9 +27,10 @@ const CharacterFloat = React.lazy(() => import('./CharacterBubble.jsx'))
 const SequenceCtx = React.createContext(null)
 const Shell = ({ children, wide }) => {
   const sequence = React.useContext(SequenceCtx)
+  const isMobile = useMobile()
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--bg)' }}>
-      <div style={{ maxWidth: wide ? 1180 : 720, margin: '0 auto', padding: '28px 20px 60px' }}>
+    <div style={{ height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--bg)' }}>
+      <div style={{ maxWidth: wide ? 1180 : 820, margin: '0 auto', padding: isMobile ? '12px 10px 96px' : '28px 20px 60px' }}>
         {sequence}
         {children}
       </div>
@@ -48,8 +51,8 @@ const WithTutor = ({ children }) => {
 }
 
 const LiveBadge = () => (
-  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 20,
-    background: 'var(--orange-bg)', color: 'var(--orange)', fontSize: 12, fontWeight: 700, marginBottom: 20 }}>
+  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 20, maxWidth: '100%',
+    background: 'var(--orange-bg)', color: 'var(--orange)', fontSize: 12, fontWeight: 700, marginBottom: 16 }}>
     <span style={{ animation: 'glow 2s ease infinite' }}>🔴</span> Clase en vivo — tu profesor controla el avance
   </div>
 )
@@ -76,23 +79,37 @@ const GuidedClassViewInner = ({ guided }) => {
     () => [...courseModules].sort((a, b) => (a.pos?.y ?? 0) - (b.pos?.y ?? 0)),
     [courseModules])
 
+  // Una sola suscripción a los participantes: la usan la barra de puntaje
+  // (visible en TODAS las pantallas de la clase) y la vista de preguntas.
+  const parts = useLiveParticipants(participant?.session_id)
+
   if (!session || !participant) return null
-  const sequence = session.status === 'ended' ? null
-    : <LiveSequence modules={orderedMods} currentId={session.module_id} />
-  return <SequenceCtx.Provider value={sequence}>{renderStep(session, participant, currentMod, avatar, tutor)}</SequenceCtx.Provider>
+  const isRound = currentMod?.type === 'challenge' && (currentMod.ctype === 'quiz' || currentMod.ctype === 'poll')
+  const stepIdx = orderedMods.findIndex(m => m.id === session.module_id)
+  const progress = isRound && session.total_questions && session.phase !== 'lobby'
+    ? { value: `${Math.min(session.current_index + 1, session.total_questions)}/${session.total_questions}`, label: 'Pregunta' }
+    : stepIdx >= 0 ? { value: `${stepIdx + 1}/${orderedMods.length}`, label: 'Paso' } : null
+  const sequence = session.status === 'ended' ? null : (
+    <>
+      <LiveSequence modules={orderedMods} currentId={session.module_id} />
+      <LiveScoreBar parts={parts} meId={participant.id} phase={session.phase} progress={progress} />
+    </>
+  )
+  return <SequenceCtx.Provider value={sequence}>{renderStep(session, participant, currentMod, avatar, tutor, parts)}</SequenceCtx.Provider>
 }
 
-const renderStep = (session, participant, currentMod, avatar, tutor) => {
+const renderStep = (session, participant, currentMod, avatar, tutor, parts) => {
 
   // Sesión finalizada: LiveQuestionView muestra el podio con confeti; app.jsx
   // detecta status==='ended' y saca al estudiante de vuelta al mapa normal.
   if (session.status === 'ended') {
-    return <LiveQuestionView participant={participant} Wrap={Shell} avatar={avatar} />
+    return <LiveQuestionView participant={participant} Wrap={Shell} avatar={avatar} parts={parts} scoreBar={false} />
   }
 
   // Módulo interactivo (quiz o encuesta en vivo): reusa el ciclo ya construido.
   if (currentMod?.type === 'challenge' && (currentMod.ctype === 'quiz' || currentMod.ctype === 'poll')) {
-    return <LiveQuestionView participant={participant} Wrap={Shell} avatar={avatar} moduleQuestions={currentMod.questions} tutor={tutor} />
+    return <LiveQuestionView participant={participant} Wrap={Shell} avatar={avatar} moduleQuestions={currentMod.questions} tutor={tutor}
+      parts={parts} scoreBar={false} />
   }
 
   // Lección de lectura: mismo contenido que ve el profesor, en modo solo-lectura.

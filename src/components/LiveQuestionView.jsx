@@ -1,5 +1,5 @@
 import React from 'react'
-import { Confetti, RichText, QuestionText } from './ui.jsx'
+import { Confetti, RichText, QuestionText, useMobile } from './ui.jsx'
 import {
   submitLiveAnswer, fetchSession, fetchParticipants, fetchAnswerCounts,
   subscribeSession, subscribeParticipants, unsubscribe,
@@ -38,6 +38,17 @@ export const optionsLayout = (optionImages, gap) => (optionImages || []).some(Bo
   ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap }
   : { display: 'flex', flexDirection: 'column', gap }
 export const cardStyle = { background: 'var(--white)', borderRadius: 20, padding: '24px 22px', boxShadow: 'var(--sh-lg)', border: '1px solid var(--border)' }
+// En celular la tarjeta pierde margen interno para que el texto use el ancho.
+const cardMobile = { ...cardStyle, borderRadius: 16, padding: '16px 14px' }
+
+// Mientras la pregunta está abierta el puntaje ya cambió en el servidor (se
+// suma al enviar), así que mostrarlo en vivo adelantaría si acertaste. Se
+// congela la lista hasta el revelado — mismo criterio que el sonido.
+export const useFrozenParts = (parts, frozen) => {
+  const ref = React.useRef(parts)
+  if (!frozen || !ref.current?.length) ref.current = parts
+  return ref.current
+}
 
 export const Countdown = ({ startedAt, limit }) => {
   const [left, setLeft] = React.useState(limit)
@@ -65,22 +76,74 @@ export const Countdown = ({ startedAt, limit }) => {
   )
 }
 
-export const Ranking = ({ list, meId }) => (
+export const Ranking = ({ list, meId, offset = 0 }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-    {list.map((p, i) => {
+    {list.map((p, j) => {
+      const i = j + offset
       const mine = p.id === meId
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`
       return (
         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12,
           background: mine ? 'var(--orange-bg)' : 'var(--bg)', border: mine ? '1.5px solid var(--orange)' : '1px solid var(--border)' }}>
           <span style={{ fontSize: 16, fontWeight: 800, minWidth: 26 }}>{medal}</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--dark)' }}>{p.nombre} {p.apellido || ''}{mine ? ' (tú)' : ''}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--dark)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre} {p.apellido || ''}{mine ? ' (tú)' : ''}</span>
           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--orange)' }}>{p.score}</span>
         </div>
       )
     })}
   </div>
 )
+
+// Barra del estudiante: sus puntos, su puesto y en qué va la clase, siempre a
+// la vista. "Ver ranking" despliega el top 5 (y su fila si no está en él).
+export const LiveScoreBar = ({ parts, meId, phase, progress }) => {
+  const isMobile = useMobile()
+  const [open, setOpen] = React.useState(false)
+  const list = useFrozenParts(parts, phase === 'question')
+  const rank = list.findIndex(p => p.id === meId) + 1
+  const me = rank > 0 ? list[rank - 1] : null
+  const stat = (icon, value, label, color) => (
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, padding: isMobile ? '8px 8px' : '10px 14px',
+      borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+      <span style={{ fontSize: isMobile ? 15 : 20 }}>{icon}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 900, color, lineHeight: 1.1, whiteSpace: 'nowrap' }}>{value}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .5,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      </div>
+    </div>
+  )
+  return (
+    <div style={{ padding: isMobile ? 8 : 12, borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)',
+      boxShadow: 'var(--sh-md)', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: isMobile ? 6 : 10, alignItems: 'stretch' }}>
+        {stat('⭐', `${me?.score ?? 0}`, 'Mis puntos', 'var(--orange)')}
+        {stat('🏆', rank ? `#${rank}` : '—', list.length ? `Puesto de ${list.length}` : 'Puesto', 'var(--dark)')}
+        {progress && stat('📍', progress.value, progress.label, 'var(--dark)')}
+      </div>
+      {list.length > 0 && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          style={{ width: '100%', marginTop: 6, padding: '6px', border: 'none', background: 'none', cursor: 'pointer',
+            fontFamily: 'var(--font)', fontSize: 12.5, fontWeight: 700, color: 'var(--orange)' }}>
+          {open ? 'Ocultar ranking ▴' : '🏆 Ver ranking de la clase ▾'}
+        </button>
+      )}
+      {open && (
+        <div style={{ marginTop: 4, animation: 'fadeUp .3s ease both' }}>
+          <Ranking list={list.slice(0, 5)} meId={meId} />
+          {me && rank > 5 && (
+            <div style={{ marginTop: 8 }}><Ranking list={[me]} meId={meId} offset={rank - 1} /></div>
+          )}
+          {phase === 'question' && (
+            <p style={{ fontSize: 11.5, color: 'var(--subtle)', textAlign: 'center', margin: '8px 0 0' }}>
+              Se actualiza cuando el profesor muestre los resultados.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Texto de lectura de la pregunta (rondas del banco, 0075). Va en una caja con
 // scroll propio para que las opciones no queden enterradas debajo de un texto
@@ -189,26 +252,35 @@ const PollBars = ({ sessionId, index, options, myAns }) => {
 // ruta (solo la Clase en Vivo Guiada lo pasa). Si el snapshot de la sesión no
 // trae el texto de lectura o la pista (sesión creada antes de 0075, o snapshot
 // incompleto), se completan desde aquí — misma posición, mismo orden.
-export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = null, moduleQuestions = null, tutor = null }) => {
-  const Center = Wrap || (({ children }) => <div style={{ maxWidth: 460, margin: '0 auto' }}>{children}</div>)
+// `parts` (opcional): participantes ya suscritos por quien llama (la vista
+// guiada, que también los usa para la barra de puntaje). Sin ella este
+// componente se suscribe por su cuenta — es el caso de la página del PIN.
+// `scoreBar`: pinta aquí la barra de puntos/puesto. La vista guiada la apaga
+// porque la pone ella misma sobre todas sus pantallas (lecciones incluidas).
+export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = null, moduleQuestions = null, tutor = null, parts: partsProp = null, scoreBar = true }) => {
+  const Center = Wrap || (({ children }) => <div style={{ maxWidth: 520, margin: '0 auto' }}>{children}</div>)
+  const isMobile = useMobile()
+  const card = isMobile ? cardMobile : cardStyle
   const [session, setSession]   = React.useState(null)
-  const [parts, setParts]       = React.useState([])
+  const [ownParts, setParts]    = React.useState([])
+  const parts = partsProp || ownParts
+  const ownsParts = !partsProp
   const [myAnswers, setMy]      = React.useState({})
   const [feedback, setFeedback] = React.useState(null)
   const [sending, setSending]   = React.useState(false)
 
   React.useEffect(() => {
     let chS, chP
-    const reloadP = () => fetchParticipants(participant.session_id).then(setParts)
+    const reloadP = () => { if (ownsParts) fetchParticipants(participant.session_id).then(setParts) }
     const resync = () => { fetchSession(participant.session_id).then(s => s && setSession(s)); reloadP() }
     resync()
     chS = subscribeSession(participant.session_id, s => setSession(s))
-    chP = subscribeParticipants(participant.session_id, reloadP)
+    if (ownsParts) chP = subscribeParticipants(participant.session_id, reloadP)
     const poll = setInterval(resync, 7000)
     const onVis = () => { if (document.visibilityState === 'visible') resync() }
     document.addEventListener('visibilitychange', onVis)
     return () => { unsubscribe(chS); unsubscribe(chP); clearInterval(poll); document.removeEventListener('visibilitychange', onVis) }
-  }, [participant.session_id])
+  }, [participant.session_id, ownsParts])
 
   React.useEffect(() => { setFeedback(null) }, [session?.current_index, session?.phase === 'question'])
 
@@ -295,6 +367,10 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
   const myAns = myAnswers[idx]
   const me = parts.find(p => p.id === participant.id)
   const myRank = parts.findIndex(p => p.id === participant.id) + 1
+  const bar = scoreBar && session.status !== 'ended' && (
+    <LiveScoreBar parts={parts} meId={participant.id} phase={session.phase}
+      progress={session.total_questions ? { value: `${Math.min(idx + 1, session.total_questions)}/${session.total_questions}`, label: 'Pregunta' } : null} />
+  )
 
   const answer = async (i) => {
     if (myAns !== undefined || sending) return
@@ -309,7 +385,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
   }
 
   if (session.phase === 'lobby') return (
-    <Center><div style={cardStyle}>
+    <Center>{bar}<div style={card}>
       {avatar
         ? <MyAvatar cfg={avatar} size={96} expression="happy" />
         : <div style={{ fontSize: 40, textAlign: 'center' }}>✅</div>}
@@ -322,7 +398,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
   if (session.phase === 'podium' || session.status === 'ended') {
     const top = parts.slice(0, 5)
     return (
-      <Center><Confetti /><div style={cardStyle}>
+      <Center><Confetti /><div style={card}>
         {avatar
           ? <MyAvatar cfg={avatar} size={116} expression={myRank <= 3 ? 'wow' : 'happy'} />
           : <div style={{ fontSize: 44, textAlign: 'center' }}>🏆</div>}
@@ -341,7 +417,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
     const isPoll = correct === null || correct === undefined
     const wasRight = myAns === correct
     return (
-      <Center><div style={cardStyle}>
+      <Center>{bar}<div style={card}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Pregunta {idx + 1}</div>
         <QuestionText as="h3" style={{ fontSize: 16, fontWeight: 700, color: 'var(--dark)', marginBottom: 14, lineHeight: 1.4 }}>{q.question}</QuestionText>
         {isPoll ? (
@@ -381,7 +457,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
                 <MyAvatar cfg={avatar} size={84} expression={wasRight ? 'happy' : 'sad'} />
               </div>
               <p style={{ textAlign: 'center', marginTop: 10, fontSize: 14, fontWeight: 700, color: wasRight ? 'var(--success)' : 'var(--error)' }}>
-                {wasRight ? `✓ ¡Correcto! +${feedback?.points ?? ''} pts` : '✗ Respuesta incorrecta'}
+                {wasRight ? `✓ ¡Correcto!${feedback?.points != null ? ` +${feedback.points} pts` : ''}` : '✗ Respuesta incorrecta'}
               </p>
             </>)}
         {session.phase === 'explanation' && (session.current_reveal?.explanation || session.current_reveal?.explanationImage) && (
@@ -399,8 +475,8 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
       {/* Ranking parcial: va DEBAJO del resultado y la explicación, nunca
           como pantalla aparte, para que no le quite el foco a entender la
           pregunta (por eso se quitó en sep 2026 la fase `leaderboard`). */}
-      {!isPoll && parts.some(p => (p.score || 0) > 0) && (
-        <div style={{ ...cardStyle, marginTop: 16, padding: '18px 20px', animation: 'fadeUp .4s ease both' }}>
+      {!isPoll && parts.length > 0 && (
+        <div style={{ ...card, marginTop: 16, animation: 'fadeUp .4s ease both' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--dark)', marginBottom: 12 }}>🏆 Ranking de la clase</div>
           <Ranking list={parts.slice(0, 5)} meId={participant.id} />
           {myRank > 5 && (
@@ -418,7 +494,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
   // phase === 'question'
   const answered = myAns !== undefined
   return (
-    <Center><div style={cardStyle}>
+    <Center>{bar}<div style={card}>
       <Countdown startedAt={session.question_started_at} limit={q.time_limit_s || session.time_limit_s || 20} />
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
         Pregunta {idx + 1} de {session.total_questions}
@@ -431,8 +507,8 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
       )}
       {/* RichText: respeta los saltos de línea (tablas, pasos, ecuaciones) y la
           **negrilla** con que algunas preguntas resaltan palabras del texto. */}
-      <QuestionText as="h3" style={{ fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginBottom: q.questionAfter ? 8 : 16, lineHeight: 1.4 }}>{q.question}</QuestionText>
-      {q.questionAfter && <RichText as="h3" style={{ fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginBottom: 16, lineHeight: 1.4 }}>{q.questionAfter}</RichText>}
+      <QuestionText as="h3" style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: 'var(--dark)', marginBottom: q.questionAfter ? 8 : 16, lineHeight: 1.4 }}>{q.question}</QuestionText>
+      {q.questionAfter && <RichText as="h3" style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: 'var(--dark)', marginBottom: 16, lineHeight: 1.4 }}>{q.questionAfter}</RichText>}
       {/* La pista la DICE el tutor del curso: el personaje se despliega desde
           su insignia (abajo a la derecha) con la pista en su globo. Solo sin
           tutor (página pública del PIN) queda como tarjeta de texto. */}
@@ -449,9 +525,9 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
         <div style={optionsLayout(q.optionImages, 10)}>
           {options.map((opt, i) => (
             <button key={i} onClick={() => answer(i)} disabled={sending}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px', borderRadius: 14, cursor: 'pointer',
+              style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12, padding: isMobile ? '13px 12px' : '16px', borderRadius: 14, cursor: 'pointer',
                 border: 'none', background: OPT_COLORS[i % OPT_COLORS.length], color: '#fff', textAlign: 'left',
-                fontFamily: 'var(--font)', fontSize: 16, fontWeight: 700, boxShadow: 'var(--sh-md)', opacity: sending ? .7 : 1 }}>
+                fontFamily: 'var(--font)', fontSize: isMobile ? 15 : 16, fontWeight: 700, boxShadow: 'var(--sh-md)', opacity: sending ? .7 : 1 }}>
               <span style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,.25)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>{String.fromCharCode(65 + i)}</span>
               <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -462,7 +538,6 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
           ))}
         </div>
       )}
-      {me && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--subtle)', marginTop: 14 }}>Tu puntaje: <b style={{ color: 'var(--orange)' }}>{me.score} pts</b> · #{myRank}</p>}
     </div></Center>
   )
 }

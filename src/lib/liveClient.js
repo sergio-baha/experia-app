@@ -17,7 +17,13 @@ export const createLiveSession = async ({ courseId, title }) => {
 }
 // Mueve el puntero de módulo actual dentro de la ruta del curso (lección,
 // encuesta, quiz interactivo, o pass-through para lo no sincrónico).
-export const liveGotoModule = async ({ session, moduleId, defaultTime = 20 }) => {
+// Tiempo por pregunta en la clase en vivo (oct 2026: 2 min). El profesor lo
+// puede cambiar desde el panel; se aplica a TODAS las preguntas de la sesión
+// con applyLiveTimeLimit (el snapshot de cada módulo trae el timeLimit propio
+// de cada pregunta, que suele ser 60 s y no alcanza para leer en clase).
+export const LIVE_QUESTION_SECONDS = 120
+export const LIVE_TIME_OPTIONS = [60, 90, 120, 180, 240]
+export const liveGotoModule = async ({ session, moduleId, defaultTime = LIVE_QUESTION_SECONDS }) => {
   const { data, error } = await supabase.rpc('live_goto_module', {
     p_session: session, p_module_id: moduleId, p_default_time: defaultTime,
   })
@@ -51,6 +57,19 @@ export const saveLiveActivityChoice = async (session, moduleId, activityId) => {
   const choices = { ...(session.activity_choices || {}), [moduleId]: activityId }
   const { data, error } = await supabase.from('live_sessions')
     .update({ activity_choices: choices }).eq('id', session.id).select().single()
+  if (error) throw error
+  return data
+}
+
+// Fija el mismo tiempo para todas las preguntas del módulo actual de la sesión.
+// Update directo (policy ls_host_all). El filtro por module_id evita pisar el
+// snapshot de un módulo nuevo si el profesor avanzó mientras esto viajaba.
+// El puntaje del servidor usa este tiempo desde 0083 (antes, el de la llave).
+export const applyLiveTimeLimit = async (session, seconds) => {
+  const questions = (session.questions || []).map(q => ({ ...q, time_limit_s: seconds }))
+  let q = supabase.from('live_sessions').update({ questions, time_limit_s: seconds }).eq('id', session.id)
+  q = session.module_id ? q.eq('module_id', session.module_id) : q.is('module_id', null)
+  const { data, error } = await q.select().maybeSingle()
   if (error) throw error
   return data
 }
@@ -164,6 +183,24 @@ export const subscribeCourseSessions = (courseId, cb) =>
         () => cb())
     .subscribe()
 export const unsubscribe = (ch) => { if (ch) supabase.removeChannel(ch) }
+
+// --- Hook: participantes de una sesión (ranking) ---
+// Fuente única para la vista guiada del estudiante: la barra de puntaje y la
+// vista de preguntas leen la misma lista (un solo canal realtime por sesión;
+// freshChannel tumbaría el de otro componente con el mismo nombre).
+export const useLiveParticipants = (sessionId) => {
+  const [parts, setParts] = React.useState([])
+  React.useEffect(() => {
+    if (!sessionId) { setParts([]); return }
+    let alive = true
+    const reload = () => fetchParticipants(sessionId).then(p => { if (alive) setParts(p) })
+    reload()
+    const ch = subscribeParticipants(sessionId, reload)
+    const poll = setInterval(reload, 7000)
+    return () => { alive = false; unsubscribe(ch); clearInterval(poll) }
+  }, [sessionId])
+  return parts
+}
 
 // --- Hook: sesión guiada del curso del estudiante ---
 // Detecta si el profesor tiene una Clase en Vivo Guiada activa para

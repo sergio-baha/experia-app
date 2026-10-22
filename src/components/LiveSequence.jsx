@@ -1,5 +1,6 @@
 import React from 'react'
 import { Ranking } from './LiveQuestionView.jsx'
+import { useMobile } from './ui.jsx'
 
 // =============================================
 // EXPERIA — Clase en Vivo Guiada: secuencia didáctica + ranking
@@ -20,7 +21,12 @@ const stepIcon = (m) => {
 }
 
 // `onSelect(i)` solo lo pasa el profesor: los pasos se vuelven clicables.
+// En celular los pasos se encogen y solo el actual dice su nombre (abajo, en
+// "Ahora:"): así los 7 pasos de la ruta caben en una fila.
 export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
+  const isMobile = useMobile()
+  const dot = isMobile ? 30 : 42
+  const colW = isMobile ? 40 : 74
   const currentIdx = modules.findIndex(m => m.id === currentId)
   const current = currentIdx >= 0 ? modules[currentIdx] : null
   const pct = modules.length > 1 && currentIdx >= 0 ? (currentIdx / (modules.length - 1)) * 100 : 0
@@ -34,8 +40,8 @@ export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
 
   if (!modules.length) return null
   return (
-    <div style={{ padding: '14px 16px 12px', borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)',
-      boxShadow: 'var(--sh-md)', marginBottom: 18 }}>
+    <div style={{ padding: isMobile ? '10px 10px 8px' : '14px 16px 12px', borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)',
+      boxShadow: 'var(--sh-md)', marginBottom: isMobile ? 10 : 18 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: 1.2 }}>
           Secuencia de la clase
@@ -48,9 +54,9 @@ export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
       </div>
 
       <div ref={railRef} style={{ position: 'relative', overflowX: 'auto', paddingBottom: 4 }}>
-        <div style={{ position: 'relative', display: 'flex', minWidth: modules.length * 74 }}>
+        <div style={{ position: 'relative', display: 'flex', minWidth: modules.length * colW }}>
           {/* Riel de fondo + avance */}
-          <div style={{ position: 'absolute', left: 37, right: 37, top: 19, height: 4, borderRadius: 4, background: 'var(--border)' }}>
+          <div style={{ position: 'absolute', left: colW / 2, right: colW / 2, top: dot / 2 - 2, height: 4, borderRadius: 4, background: 'var(--border)' }}>
             <div style={{ height: '100%', width: pct + '%', borderRadius: 4, background: 'var(--gradient)', transition: 'width .6s ease' }} />
           </div>
           {modules.map((m, i) => {
@@ -61,11 +67,11 @@ export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
               <button key={m.id} data-current={now} type="button"
                 onClick={clickable ? () => onSelect(i) : undefined}
                 title={m.title}
-                style={{ flex: 1, minWidth: 74, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                style={{ flex: 1, minWidth: colW, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
                   gap: 6, background: 'none', border: 'none', padding: 0, fontFamily: 'var(--font)',
                   cursor: clickable ? 'pointer' : 'default' }}>
-                <span style={{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: now ? 20 : 16, fontWeight: 800, transition: 'all .3s ease',
+                <span style={{ width: dot, height: dot, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: isMobile ? (now ? 15 : 12) : (now ? 20 : 16), fontWeight: 800, transition: 'all .3s ease',
                   background: now ? 'var(--gradient)' : done ? 'var(--success)' : 'var(--white)',
                   color: now || done ? '#fff' : 'var(--subtle)',
                   border: now || done ? 'none' : '2px solid var(--border)',
@@ -73,11 +79,11 @@ export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
                   animation: now ? 'glow 2.2s ease infinite' : 'none' }}>
                   {done ? '✓' : now ? stepIcon(m) : i + 1}
                 </span>
-                <span style={{ fontSize: 11, lineHeight: 1.25, maxWidth: 92, textAlign: 'center',
+                {!isMobile && <span style={{ fontSize: 11, lineHeight: 1.25, maxWidth: 92, textAlign: 'center',
                   fontWeight: now ? 800 : 600, color: now ? 'var(--dark)' : done ? 'var(--muted)' : 'var(--subtle)',
                   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {m.title}
-                </span>
+                </span>}
               </button>
             )
           })}
@@ -87,7 +93,7 @@ export const LiveSequence = ({ modules, currentId, onSelect, disabled }) => {
       {current && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', alignItems: 'center',
           gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--dark)' }}>
+          <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: 'var(--dark)' }}>
             {stepIcon(current)} Ahora: {current.title}
           </div>
           {modules[currentIdx + 1] && (
