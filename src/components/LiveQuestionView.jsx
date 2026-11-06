@@ -87,8 +87,8 @@ export const Ranking = ({ list, meId, offset = 0 }) => (
         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12,
           background: mine ? 'var(--orange-bg)' : 'var(--bg)', border: mine ? '1.5px solid var(--orange)' : '1px solid var(--border)' }}>
           <span style={{ fontSize: 16, fontWeight: 800, minWidth: 26 }}>{medal}</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--dark)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre} {p.apellido || ''}{mine ? ' (tú)' : ''}</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--orange)' }}>{p.score}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--dark)', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{p.nombre} {p.apellido || ''}{mine ? ' (tú)' : ''}</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--orange)', flexShrink: 0 }}>{p.score}</span>
         </div>
       )
     })}
@@ -104,13 +104,13 @@ export const LiveScoreBar = ({ parts, meId, phase, progress }) => {
   const rank = list.findIndex(p => p.id === meId) + 1
   const me = rank > 0 ? list[rank - 1] : null
   const stat = (icon, value, label, color) => (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, padding: isMobile ? '8px 8px' : '10px 14px',
-      borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)' }}>
-      <span style={{ fontSize: isMobile ? 15 : 20 }}>{icon}</span>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: 8, padding: isMobile ? '8px 4px' : '10px 14px',
+      borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)', textAlign: isMobile ? 'center' : 'left' }}>
+      {!isMobile && <span style={{ fontSize: 20 }}>{icon}</span>}
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 900, color, lineHeight: 1.1, whiteSpace: 'nowrap' }}>{value}</div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .5,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: isMobile ? .2 : .5,
+          whiteSpace: 'nowrap' }}>{label}</div>
       </div>
     </div>
   )
@@ -118,7 +118,7 @@ export const LiveScoreBar = ({ parts, meId, phase, progress }) => {
     <div style={{ padding: isMobile ? 8 : 12, borderRadius: 18, background: 'var(--white)', border: '1px solid var(--border)',
       boxShadow: 'var(--sh-md)', marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: isMobile ? 6 : 10, alignItems: 'stretch' }}>
-        {stat('⭐', `${me?.score ?? 0}`, 'Mis puntos', 'var(--orange)')}
+        {stat('⭐', `${me?.score ?? 0}`, isMobile ? 'Puntos' : 'Mis puntos', 'var(--orange)')}
         {stat('🏆', rank ? `#${rank}` : '—', list.length ? `Puesto de ${list.length}` : 'Puesto', 'var(--dark)')}
         {progress && stat('📍', progress.value, progress.label, 'var(--dark)')}
       </div>
@@ -388,6 +388,12 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
     } finally { setSending(false) }
   }
 
+  // El módulo cambió a una lección y quien nos monta aún no lo sabe: sin esto se
+  // veía un instante una pregunta vacía ("Pregunta 1 de 0").
+  if (session.phase === 'lesson') return (
+    <Center>{bar}<p style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Un momento…</p></Center>
+  )
+
   if (session.phase === 'lobby') return (
     <Center>{bar}<div style={card}>
       {avatar
@@ -425,7 +431,7 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
         </div>
       )}
       {/* En la página del PIN, la barra fija de salida no debe tapar el final. */}
-      {onEnded && <div style={{ height: 72 }} />}
+      {onEnded && <div style={{ height: 110 }} />}
       </Center>
     )
   }
@@ -478,8 +484,9 @@ export const LiveQuestionView = ({ participant, Wrap, avatar = null, onEnded = n
                     fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{String.fromCharCode(65 + i)}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <OptionImage src={q.optionImages?.[i]} maxHeight={140} />
-                    <RichText>{opt}</RichText>{isCorrect && ' ✓'}{isMine && !isCorrect && ' ✗'}
+                    <RichText>{opt}</RichText>
                   </span>
+                  {(isCorrect || isMine) && <span aria-label={isCorrect ? 'Correcta' : 'Incorrecta'} style={{ flexShrink: 0, fontSize: 16, fontWeight: 900, color: isCorrect ? '#0F766E' : '#B91C1C' }}>{isCorrect ? '✓' : '✗'}</span>}
                 </div>
               )
             })}

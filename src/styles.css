@@ -1234,6 +1234,7 @@ table { min-width: 560px; }
 
 /* ── Variables del tema ── */
 [data-course-theme="escape-room"] {
+  --bg-alt: rgba(255,255,255,.08);
   --er-bg:      #080e08;
   --er-panel:   #0f170f;
   --er-border:  rgba(240,165,0,.2);
@@ -1542,6 +1543,7 @@ table { min-width: 560px; }
 
 /* ── Variables del tema lab ── */
 [data-course-theme="lab"] {
+  --bg-alt: rgba(255,255,255,.08);
   --lab-bg:      #04080f;
   --lab-panel:   #080f14;
   --lab-border:  rgba(0,255,136,.18);
@@ -1814,6 +1816,7 @@ table { min-width: 560px; }
 
 /* ── Variables del tema time-travel ── */
 [data-course-theme="time-travel"] {
+  --bg-alt: rgba(255,255,255,.08);
   --tt-bg:       #030510;
   --tt-panel:    #060818;
   --tt-border:   rgba(201,162,39,.2);
@@ -2350,9 +2353,6 @@ table { min-width: 560px; }
 .xch-body { position: absolute; inset: 0; }
 .xch-body svg { filter: drop-shadow(0 10px 20px rgba(0,0,0,.45)); }
 .xch-root-student .xch-aura { opacity: .8; }
-@media (max-width: 720px) {
-  .xch-root-student { --xch-h: clamp(180px, 36vh, 290px); }
-}
 
 /* --- Zona sensible al clic (solo sobre la figura) ------------------------ */
 .xch-hit {
@@ -2445,7 +2445,13 @@ table { min-width: 560px; }
 
 /* --- Móvil: figura más pequeña y globo encima --------------------------- */
 @media (max-width: 720px) {
-  .xch-root { --xch-h: clamp(200px, 42vh, 330px); }
+  /* La figura a tamaño completo tapaba las opciones de respuesta, y tocarla la
+     despedía en vez de marcar la opción de debajo. Va más pequeña, el toque la
+     atraviesa y el globo se cierra con su ×. */
+  .xch-root { --xch-h: clamp(150px, 26vh, 210px); }
+  .xch-root-student { --xch-h: clamp(120px, 20vh, 160px); }
+  .xch-hit, .xch-bubble { pointer-events: none; }
+  .xch-close, .xch-cta { pointer-events: auto; }
   .xch-bubble { bottom: calc(100% - 26px); width: min(260px, 66vw); padding: 11px 28px 12px 14px; }
   .xch-root[data-side="left"]  .xch-bubble { left: 4px; }
   .xch-root[data-side="right"] .xch-bubble { right: 4px; }

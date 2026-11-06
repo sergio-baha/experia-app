@@ -27,7 +27,7 @@ const codeFromHash = () => {
 // del contenido que se desborda.
 const Center = ({ children }) => (
   <div style={{ height: '100vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--bg, #F9FAFB)' }}>
-    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'var(--font)', boxSizing: 'border-box' }}>
+    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 16px 20px', fontFamily: 'var(--font)', boxSizing: 'border-box' }}>
       <div style={{ width: '100%', maxWidth: 460 }}>{children}</div>
     </div>
   </div>
@@ -154,12 +154,12 @@ const LivePlay = () => {
 
       {cuenta !== null && (
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 4000,
-          padding: '14px 20px calc(14px + env(safe-area-inset-bottom))',
+          padding: '10px 16px calc(10px + env(safe-area-inset-bottom))',
           background: 'var(--white)', borderTop: '1px solid var(--border)',
           boxShadow: 'var(--sh-lg)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, color: 'var(--text-sec)' }}>
-            La clase terminó · vuelves a Experia en <b style={{ color: 'var(--orange)' }}>{cuenta}s</b>
+            Vuelves a Experia en <b style={{ color: 'var(--orange)' }}>{cuenta}s</b>
           </span>
           <Btn size="sm" onClick={salirAExperia}>Volver ahora →</Btn>
         </div>

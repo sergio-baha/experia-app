@@ -13,7 +13,7 @@ const CompetenciaRow = ({ label, correct, total }) => (
       <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--dark)', lineHeight: 1.35 }}>{label}</span>
       <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--dark)', whiteSpace: 'nowrap' }}>{correct} de {total}</span>
     </div>
-    <div style={{ height: 8, borderRadius: 6, background: 'var(--bg-alt)', overflow: 'hidden' }}>
+    <div style={{ height: 8, borderRadius: 6, background: 'var(--border)', overflow: 'hidden' }}>
       <div style={{ height: '100%', width: `${(correct / total) * 100}%`, borderRadius: 6, background: 'var(--purple)' }} />
     </div>
   </div>

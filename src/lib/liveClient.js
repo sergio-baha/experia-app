@@ -177,8 +177,12 @@ const freshChannel = (name) => {
     .forEach(ch => supabase.removeChannel(ch))
   return supabase.channel(name)
 }
-export const subscribeSession = (id, cb) =>
-  freshChannel('live-session-' + id)
+// `scope`: nombre propio por consumidor. freshChannel tumba el canal que tenga el
+// mismo nombre, así que useGuidedSession y LiveQuestionView, que siguen la misma
+// sesión a la vez, no pueden compartirlo: el segundo dejaba sordo al primero y el
+// cambio de módulo tardaba hasta 7 s (el poll) en llegar al estudiante.
+export const subscribeSession = (id, cb, scope = 'vista') =>
+  freshChannel(`live-session-${scope}-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions', filter: `id=eq.${id}` },
         payload => cb(payload.new))
     .subscribe()
@@ -274,7 +278,7 @@ export const useGuidedSession = (courseId) => {
     let alive = true
     const resync = () => fetchSession(participant.session_id).then(s => { if (alive) setSession(s) })
     resync()
-    const ch = subscribeSession(participant.session_id, setSession)
+    const ch = subscribeSession(participant.session_id, setSession, 'guiada')
     const poll = setInterval(resync, 7000)
     return () => { alive = false; unsubscribe(ch); clearInterval(poll) }
   }, [participant])

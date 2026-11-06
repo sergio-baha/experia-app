@@ -40,11 +40,11 @@ const Header = React.memo(({ onMenuClick }) => {
 
   return (
     <header style={{ height: 'var(--header-h)', display: 'flex', alignItems: 'center',
-      justifyContent: 'space-between', padding: '0 16px 0 24px', gap: 12,
+      justifyContent: 'space-between', padding: isMobile ? '0 10px' : '0 16px 0 24px', gap: isMobile ? 6 : 12,
       borderBottom: '1px solid var(--border)', flexShrink: 0,
       background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
       WebkitBackdropFilter: 'var(--glass-blur)', zIndex: 50 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, minWidth: 0 }}>
         {isMobile && (
           <button onClick={onMenuClick} aria-label="Abrir menú" style={{
             background: 'var(--bg-alt)', border: 'none', cursor: 'pointer',
@@ -61,11 +61,11 @@ const Header = React.memo(({ onMenuClick }) => {
           </React.Suspense>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
-        {/* En celular, con selector de sala no caben también el nombre y los puntos. */}
-        {!(isMobile && hasManyCourses) && <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: 'var(--dark)' }}>{user.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, marginLeft: 'auto', flexShrink: 0 }}>
+        {/* En celular no cabe: se montaba sobre el logo. El nivel y los puntos ya están en el mapa. */}
+        {!isMobile && <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--dark)' }}>{user.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
             {user.role === 'instructor' ? 'Instructor' : `Nivel ${level} · ${xp} pts`}
           </div>
         </div>}

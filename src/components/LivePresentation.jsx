@@ -1,6 +1,6 @@
 import React from 'react'
 import { dbModToAppMod } from '../store/store.jsx'
-import { RichText, QuestionText } from './ui.jsx'
+import { RichText, QuestionText, useMobile } from './ui.jsx'
 import { LessonSection, isTutorOnlySection } from '../pages/lesson.jsx'
 import { LivePassage, OptionImage, OPT_COLORS } from './LiveQuestionView.jsx'
 import { LIVE_TIME_OPTIONS } from '../lib/liveClient.js'
@@ -105,10 +105,10 @@ const DarkRanking = ({ parts, limit = 10 }) => (
       <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12,
         background: i < 3 ? 'rgba(236,103,26,.18)' : 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)' }}>
         <span style={{ fontSize: 18, fontWeight: 800, minWidth: 34 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
           {p.nombre} {p.apellido || ''}
         </span>
-        <span style={{ fontSize: 17, fontWeight: 900, color: '#FDBA74' }}>{p.score}</span>
+        <span style={{ fontSize: 17, fontWeight: 900, color: '#FDBA74', flexShrink: 0 }}>{p.score}</span>
       </div>
     ))}
     {parts.length === 0 && <p style={{ opacity: .7, textAlign: 'center' }}>Aún no hay participantes.</p>}
@@ -135,6 +135,7 @@ export const LivePresentation = ({
   const ended = session.status === 'ended'
   const isLesson = currentModule?.type === 'lesson'
   const scale = useStageScale()
+  const isMobile = useMobile()
 
   const [slide, setSlide] = React.useState(0)
   const [showRanking, setShowRanking] = React.useState(false)
@@ -295,7 +296,7 @@ export const LivePresentation = ({
     const reveal = phase !== 'question'
     const passage = question?.passage
     const optionTiles = (
-      <div style={{ display: 'grid', gridTemplateColumns: options.length > 2 || (optionImages || []).some(Boolean) ? 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' : '1fr',
+      <div style={{ display: 'grid', gridTemplateColumns: !isMobile && options.length === 4 ? 'repeat(2, minmax(0, 1fr))' : options.length > 2 || (optionImages || []).some(Boolean) ? 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' : '1fr',
         gap: 'clamp(8px, 1vw, 16px)' }}>
         {options.map((opt, i) => {
           const isCorrect = correct === i
@@ -339,23 +340,29 @@ export const LivePresentation = ({
           </div>
           <div style={{ fontSize: 13, opacity: .75, marginTop: 4 }}>{answered} de {parts.length} respondieron</div>
         </div>
-        {phase === 'question' && <TimerRing left={left} limit={limit} size={scale > 1 ? 104 : 86} />}
+        {phase === 'question' && <TimerRing left={left} limit={limit} size={isMobile ? 62 : scale > 1 ? 104 : 86} />}
       </div>
     )
     const questionCard = (
       <div style={{ background: '#fff', color: '#1A1A2E', borderRadius: 18, padding: 'clamp(14px, 1.8vw, 28px) clamp(16px, 2vw, 32px)',
-        marginBottom: 'clamp(10px, 1.4vw, 20px)', boxShadow: '0 20px 50px rgba(0,0,0,.35)' }}>
-        {question?.image && <img src={question.image} alt="" style={{ display: 'block', margin: '0 auto 12px', maxWidth: '100%', maxHeight: '28vh', objectFit: 'contain', borderRadius: 10 }} />}
-        <QuestionText as="h2" style={{ fontSize: phase === 'explanation' ? 'clamp(17px, 1.6vw, 24px)' : 'clamp(20px, 2.3vw, 36px)', fontWeight: 800, lineHeight: 1.3, margin: 0 }}>
-          {question?.question}
-        </QuestionText>
-        {question?.questionAfter && (
-          <RichText as="h2" style={{ fontSize: 'clamp(20px, 2.3vw, 36px)', fontWeight: 800, lineHeight: 1.3, margin: '10px 0 0' }}>{question.questionAfter}</RichText>
+        marginBottom: 'clamp(10px, 1.4vw, 20px)', boxShadow: '0 20px 50px rgba(0,0,0,.35)',
+        display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', gap: isMobile ? 12 : 24 }}>
+        {question?.image && (
+          <img src={question.image} alt="" style={{ display: 'block', flexShrink: 0, maxWidth: isMobile ? '100%' : '36%',
+            maxHeight: isMobile ? '22vh' : phase === 'question' ? '24vh' : '18vh', objectFit: 'contain', borderRadius: 10 }} />
         )}
+        <div style={{ flex: 1, minWidth: 0, alignSelf: isMobile ? 'stretch' : 'center' }}>
+          <QuestionText as="h2" style={{ fontSize: phase === 'question' ? 'clamp(19px, 1.8vw, 32px)' : 'clamp(17px, 1.5vw, 26px)', fontWeight: 800, lineHeight: 1.3, margin: 0 }}>
+            {question?.question}
+          </QuestionText>
+          {question?.questionAfter && (
+            <RichText as="h2" style={{ fontSize: phase === 'question' ? 'clamp(19px, 1.8vw, 32px)' : 'clamp(17px, 1.5vw, 26px)', fontWeight: 800, lineHeight: 1.3, margin: '10px 0 0' }}>{question.questionAfter}</RichText>
+          )}
+        </div>
       </div>
     )
     const explanationCard = phase === 'explanation' && explanation && (
-      <div style={{ marginTop: 'clamp(10px, 1.4vw, 20px)', background: '#fff', color: '#1A1A2E', borderRadius: 18, padding: 'clamp(14px, 1.8vw, 26px)',
+      <div ref={el => { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} style={{ marginTop: 'clamp(10px, 1.4vw, 20px)', background: '#fff', color: '#1A1A2E', borderRadius: 18, padding: 'clamp(14px, 1.8vw, 26px)',
         borderLeft: '8px solid #7C3AED', boxShadow: '0 20px 50px rgba(0,0,0,.35)', animation: 'fadeUp .4s ease both' }}>
         <div style={{ fontSize: 13, fontWeight: 900, color: '#7C3AED', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>💡 Explicación</div>
         <RichText as="p" style={{ fontSize: 'clamp(15px, 1.5vw, 24px)', lineHeight: 1.6, margin: 0 }}>{explanation}</RichText>
@@ -419,42 +426,46 @@ export const LivePresentation = ({
     <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: STAGE_BG, color: '#fff', display: 'flex',
       flexDirection: 'column', fontFamily: 'var(--font)' }}>
       {/* Barra superior */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, padding: isMobile ? '8px 12px' : '10px 18px', flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20,
           background: 'rgba(239,68,68,.18)', color: '#FCA5A5', fontSize: 12, fontWeight: 900, letterSpacing: 1 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', animation: 'pulse 1.4s ease infinite' }} /> EN VIVO
         </span>
-        <div style={{ flex: 1, minWidth: 160, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: isMobile ? 0 : 160, overflow: 'hidden' }}>
           <div style={{ fontSize: 12, opacity: .6, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{session.title || 'Clase en vivo'}</div>
           <div style={{ fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {ended ? 'Resultados finales' : `${TYPE_ICON[currentModule?.type] || '📄'} ${currentModule?.title || ''}`}
           </div>
         </div>
-        <span style={{ ...BAR_BTN, cursor: 'default', letterSpacing: 2 }} title="PIN para invitados sin cuenta">PIN {session.code}</span>
-        <span style={{ ...BAR_BTN, cursor: 'default' }} title="Estudiantes conectados">👥 {parts.length}</span>
+        <div style={isMobile
+          ? { flexBasis: '100%', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: 2 }
+          : { display: 'contents' }}>
+        <span style={{ ...BAR_BTN, cursor: 'default', letterSpacing: 2, order: 1 }} title="PIN para invitados sin cuenta">PIN {session.code}</span>
+        <span style={{ ...BAR_BTN, cursor: 'default', order: 1 }} title="Estudiantes conectados">👥 {parts.length}</span>
         {!ended && (
-          <label style={{ ...BAR_BTN, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Tiempo por pregunta">
+          <label style={{ ...BAR_BTN, display: 'inline-flex', alignItems: 'center', gap: 6, order: 1 }} title="Tiempo por pregunta">
             ⏱
             <select value={qSeconds} onChange={e => onTimeChange(Number(e.target.value))}
-              style={{ background: 'transparent', color: '#fff', border: 'none', fontFamily: 'var(--font)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              style={{ minHeight: 28, background: 'transparent', color: '#fff', border: 'none', fontFamily: 'var(--font)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
               {LIVE_TIME_OPTIONS.map(t => <option key={t} value={t} style={{ color: '#1A1A2E' }}>{fmt(t)} min</option>)}
             </select>
           </label>
         )}
         {activityChooser && !ended && (
-          <button style={{ ...BAR_BTN, background: showActivity ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowActivity(v => !v)}>🎲 Actividad</button>
+          <button style={{ ...BAR_BTN, order: 1, background: showActivity ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowActivity(v => !v)}>🎲 Actividad</button>
         )}
         {notes.length > 0 && !ended && (
-          <button style={{ ...BAR_BTN, background: showNotes ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowNotes(v => !v)} title="Guía del docente (N)">📝 Notas</button>
+          <button style={{ ...BAR_BTN, order: 1, background: showNotes ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowNotes(v => !v)} title="Guía del docente (N)">📝 Notas</button>
         )}
-        <button style={{ ...BAR_BTN, background: showRanking ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowRanking(v => !v)} title="Ranking (R)">🏆 Ranking</button>
-        <button style={BAR_BTN} onClick={onToggleMute} title={muted ? 'Activar sonido' : 'Silenciar'}>{muted ? '🔇' : '🔊'}</button>
-        <button style={BAR_BTN} onClick={toggleFullscreen} title="Pantalla completa">{fullscreen ? '🗗' : '⛶'}</button>
+        <button style={{ ...BAR_BTN, order: 1, background: showRanking ? 'rgba(236,103,26,.4)' : BAR_BTN.background }} onClick={() => setShowRanking(v => !v)} title="Ranking (R)">🏆 Ranking</button>
+        <button style={{ ...BAR_BTN, order: 1 }} onClick={onToggleMute} title={muted ? 'Activar sonido' : 'Silenciar'}>{muted ? '🔇' : '🔊'}</button>
+        <button style={{ ...BAR_BTN, order: 1 }} onClick={toggleFullscreen} title="Pantalla completa">{fullscreen ? '🗗' : '⛶'}</button>
         {/* Terminar ronda cierra solo las preguntas y la clase sigue. Finalizar clase
             cierra toda la sesión; siempre disponible, para no dejarla abierta. */}
-        {canEndRound && <button style={{ ...BAR_BTN, background: 'rgba(236,103,26,.4)' }} onClick={() => fire(actions.endRound)} disabled={pending || busy} title="Cerrar las preguntas que faltan y seguir con la clase">🏁 Terminar ronda</button>}
-        {!ended && <button style={BAR_BTN} onClick={finish} disabled={pending || busy} title="Terminar toda la clase en vivo">⏹ Finalizar clase</button>}
-        <button style={BAR_BTN} onClick={onClose} title="Volver al panel de control">✕ Panel</button>
+        {canEndRound && <button style={{ ...BAR_BTN, background: 'rgba(236,103,26,.4)', order: isMobile ? -2 : 1 }} onClick={() => fire(actions.endRound)} disabled={pending || busy} title="Cerrar las preguntas que faltan y seguir con la clase">🏁 Terminar ronda</button>}
+        {!ended && <button style={{ ...BAR_BTN, order: isMobile ? -1 : 1 }} onClick={finish} disabled={pending || busy} title="Terminar toda la clase en vivo">⏹ Finalizar clase</button>}
+        <button style={{ ...BAR_BTN, order: isMobile ? 0 : 1 }} onClick={onClose} title="Volver al panel de control">✕ Panel</button>
+        </div>
       </div>
 
       {/* Escenario */}
@@ -497,19 +508,19 @@ export const LivePresentation = ({
       </div>
 
       {/* Barra inferior: navegación tipo PowerPoint */}
-      <div style={{ padding: '10px 18px 14px' }}>
+      <div style={{ padding: isMobile ? '6px 12px calc(10px + env(safe-area-inset-bottom))' : '10px 18px 14px' }}>
         {isLesson && slides.length > 1 && (
           <div style={{ height: 4, borderRadius: 4, background: 'rgba(255,255,255,.12)', marginBottom: 10, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${((slide + 1) / slides.length) * 100}%`, background: '#EC671A', transition: 'width .3s' }} />
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button onClick={prev} disabled={!canPrev || pending || busy}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
+          <button onClick={prev} disabled={!canPrev || pending || busy} aria-label="Anterior"
             style={{ ...BAR_BTN, padding: '12px 18px', fontSize: 16, opacity: canPrev ? 1 : .35, cursor: canPrev ? 'pointer' : 'default' }}>
-            ◀ Anterior
+            {isMobile ? '◀' : '◀ Anterior'}
           </button>
 
-          <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ flex: isMobile ? '1 1 100%' : 1, order: isMobile ? -1 : 0, minWidth: isMobile ? 0 : 200, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? 2 : 6 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
               {moduleList.map((m, i) => {
                 const now = i === currentIdx, done = i < currentIdx
@@ -525,13 +536,13 @@ export const LivePresentation = ({
               })}
             </div>
             <div style={{ fontSize: 12, opacity: .65, fontWeight: 600 }}>
-              {counter}{counter ? ' · ' : ''}← → para avanzar · R ranking{notes.length ? ' · N notas' : ''}
+              {counter}{!isMobile && <>{counter ? ' · ' : ''}← → para avanzar · R ranking{notes.length ? ' · N notas' : ''}</>}
             </div>
           </div>
 
           {nextStep ? (
             <button onClick={nextStep.run} disabled={pending || busy}
-              style={{ border: 'none', borderRadius: 14, padding: '14px 26px', fontSize: 17, fontWeight: 900, fontFamily: 'var(--font)',
+              style={{ flex: isMobile ? 1 : 'none', border: 'none', borderRadius: 14, padding: isMobile ? '12px 14px' : '14px 26px', fontSize: isMobile ? 15 : 17, fontWeight: 900, fontFamily: 'var(--font)',
                 cursor: pending || busy ? 'wait' : 'pointer', color: '#fff', whiteSpace: 'nowrap',
                 background: 'linear-gradient(135deg, #EC671A, #F59E33)', boxShadow: '0 10px 30px rgba(236,103,26,.45)',
                 opacity: pending || busy ? .7 : 1, animation: phase === 'question' && left === 0 && isInteractive ? 'pulse 1.2s ease infinite' : 'none' }}>
