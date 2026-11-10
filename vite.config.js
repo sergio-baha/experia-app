@@ -55,7 +55,7 @@ export default defineConfig({
           '**/estructura-saber/**',
           '**/avatarKit-*.js', '**/avatarBody-*.js',
           '**/AvatarStudio-*.js', '**/AvatarChip-*.js', '**/LiveAvatar-*.js',
-          '**/rejillaTareas-*.js',
+          '**/rejillaTareas-*.js', '**/rejillaSociales-*.js',
           // Banco de preguntas de las rondas en vivo (~200 KB): solo lo baja el
           // tutor al abrir "Elegir del banco". Sus imágenes, igual.
           '**/questionBank-*.js', '**/preguntas/**',

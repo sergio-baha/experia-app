@@ -14,7 +14,7 @@ import {
   buildSummary, normalizeSections, fmtPct, colorEfectividad,
 } from '../lib/effectiveness.js'
 import {
-  loadRejilla, unidadDe, buildRecomendacionesYTareas, rejillaAplicaAGrupo,
+  loadRejilla, unidadDe, buildRecomendacionesYTareas, materiaDeGrupo,
 } from '../lib/tareasRecomendaciones.js'
 
 // ── Tabla de efectividad — MODO CLON (piloto temporal, 0051) ────────────────
@@ -139,14 +139,17 @@ const CloneEffectivenessPage = () => {
   // Rejilla académica del informe final (recomendaciones y tareas por pregunta).
   // Va aparte del bundle (~60 KB) y su ausencia no rompe nada: sin ella el
   // informe imprime la asistencia y la tabla, y avisa que faltan los textos.
+  // La rejilla depende de la materia del grupo (se lee de su nombre).
+  const materia = materiaDeGrupo(group?.name)
   const [rejilla, setRejilla] = React.useState(null)
   React.useEffect(() => {
     let alive = true
-    loadRejilla()
+    setRejilla(null)
+    loadRejilla(materia)
       .then(r => { if (alive) setRejilla(r) })
       .catch(e => console.error('loadRejilla:', e))
     return () => { alive = false }
-  }, [])
+  }, [materia])
 
   React.useEffect(() => {
     let alive = true
@@ -201,11 +204,9 @@ const CloneEffectivenessPage = () => {
     return unidadDe(unitLabel, i >= 0 ? i + 1 : null)
   }, [unitLabel, planUnits])
 
-  // La rejilla es de Química: a un grupo de otra materia no se le cruza.
-  const rejillaAplica = rejillaAplicaAGrupo(group?.name)
   const informe = React.useMemo(
-    () => buildRecomendacionesYTareas(rejillaAplica ? rejilla : null, result, unidad),
-    [rejillaAplica, rejilla, result, unidad])
+    () => buildRecomendacionesYTareas(rejilla, result, unidad),
+    [rejilla, result, unidad])
 
   // ── Edición ──────────────────────────────────────────────────────────────
   const patchSection = (key, patch) =>
@@ -925,8 +926,8 @@ const CloneEffectivenessPage = () => {
           <>
             {!informe.hayRejilla && (
               <p style={{ fontSize: 11, color: '#B45309', lineHeight: 1.55, marginBottom: 14 }}>
-                ⚠️ {!rejillaAplica
-                  ? 'Los textos de recomendaciones y tareas por pregunta solo están disponibles para Química; para esta materia aún no se han cargado.'
+                ⚠️ {!materia
+                  ? 'Los textos de recomendaciones y tareas por pregunta están disponibles para Química y Sociales; para esta materia aún no se han cargado.'
                   : unidad
                   ? `La rejilla del libro no tiene preguntas cargadas para la unidad ${unidad}.`
                   : 'Elige la unidad del libro trabajada para que el informe traiga los textos de recomendaciones y tareas.'}

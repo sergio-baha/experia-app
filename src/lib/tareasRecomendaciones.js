@@ -19,17 +19,24 @@
 
 import { SECTIONS } from './effectiveness.js'
 
-// La rejilla pesa ~60 KB, así que se carga aparte y solo cuando el docente abre
-// la tabla de efectividad. Se cachea la promesa: la página puede pedirla varias
-// veces (cambio de grupo, de registro) sin volver a bajar el chunk.
-let _rejilla = null
-export const loadRejilla = () => {
-  if (!_rejilla) {
-    _rejilla = import('./rejillaTareas.json')
+// Una rejilla por materia (~60–75 KB cada una), cada una en su propio chunk:
+// se carga aparte y solo cuando el docente abre la tabla de efectividad. Se
+// cachea la promesa por materia: la página puede pedirla varias veces (cambio
+// de grupo, de registro) sin volver a bajar el chunk.
+const REJILLAS = {
+  quimica:  () => import('./rejillaTareas.json'),
+  sociales: () => import('./rejillaSociales.json'),
+}
+const _rejillas = {}
+export const loadRejilla = (materia = 'quimica') => {
+  const load = REJILLAS[materia]
+  if (!load) return Promise.resolve(null)
+  if (!_rejillas[materia]) {
+    _rejillas[materia] = load()
       .then(m => m.default || m)
-      .catch(e => { _rejilla = null; throw e })
+      .catch(e => { delete _rejillas[materia]; throw e })
   }
-  return _rejilla
+  return _rejillas[materia]
 }
 
 // Número de unidad a partir del nombre que el tutor le puso en su plan
@@ -44,17 +51,19 @@ export function unidadDe(unitLabel, fallback = null) {
   return Number.isFinite(n) && n > 0 ? n : (fallback || null)
 }
 
-// ⚠️ La rejilla es SOLO de Química (libro Saberes, "Código Materia" 6). Un
-// grupo de otra materia (p. ej. "Décimo A - Sociales - ZCS") no puede cruzarse
-// con ella: le saldrían componentes y textos de Química. `clone_groups` no
-// tiene columna de materia, así que se lee del NOMBRE del grupo: si nombra otra
-// materia, la rejilla no aplica. Sin materia en el nombre ("ONCE", "Décimo A -
-// JM") se asume Química, que es como nació el piloto.
-const OTRAS_MATERIAS = /sociales|ciudadan|matem|lectura|lenguaje|ingl[eé]s|biolog|f[ií]sica|filosof|historia|geograf/i
-export function rejillaAplicaAGrupo(groupName) {
-  const s = String(groupName || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  if (/quimica/i.test(s)) return true
-  return !OTRAS_MATERIAS.test(s)
+// ⚠️ Cada grupo usa la rejilla de SU materia: cruzar un grupo de Sociales con
+// la de Química le imprimía componentes y textos de Química. `clone_groups` no
+// tiene columna de materia, así que se lee del NOMBRE del grupo ("Décimo A -
+// Sociales - ZCS"). Sin materia en el nombre ("ONCE", "Décimo A - JM") se
+// asume Química, que es como nació el piloto. Una materia sin rejilla cargada
+// (Matemáticas, Lectura…) devuelve null: el informe lista las preguntas igual,
+// sin textos.
+export function materiaDeGrupo(groupName) {
+  const s = String(groupName || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  if (/quimica/.test(s)) return 'quimica'
+  if (/sociales|ciudadan/.test(s)) return 'sociales'
+  if (/matem|lectura|lenguaje|ingles|biolog|fisica|filosof|historia|geograf/.test(s)) return null
+  return 'quimica'
 }
 
 // Filas de la rejilla de una unidad, indexadas por `momento|n` para el cruce.

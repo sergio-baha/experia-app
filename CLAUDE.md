@@ -581,11 +581,18 @@ termine.
     `recomendaciones` / `ejes` / `componentes`. Al agregar una columna de ese
     tipo, seguir el mismo patrón. Un `0` suelto en una celda de la rejilla es
     una casilla sin diligenciar, no un valor: el script lo guarda vacío.
-  - ⚠️ **La rejilla es SOLO de Química.** `rejillaAplicaAGrupo(group.name)`
-    la apaga si el nombre del grupo nombra otra materia ("Décimo A - Sociales -
-    ZCS"); sin materia en el nombre ("ONCE", "Décimo A - JM") se asume Química.
-    `clone_groups` no tiene columna de materia: al crear grupos de otra materia,
-    **ponerla en el nombre**, o el informe les mostrará componentes de Química.
+  - ⚠️ **Una rejilla por materia: Química (`rejillaTareas.json`) y Sociales
+    (`rejillaSociales.json`, nov 2026).** `materiaDeGrupo(group.name)` elige
+    cuál cargar leyendo el NOMBRE del grupo ("Décimo A - Sociales - ZCS");
+    sin materia en el nombre ("ONCE", "Décimo A - JM") se asume Química, y una
+    materia sin rejilla (Matemáticas…) no carga ninguna. `clone_groups` no
+    tiene columna de materia: al crear grupos, **ponerla en el nombre**, o el
+    informe les mostrará la rejilla de Química.
+    - Se generan con `node scripts/build-rejilla.mjs [quimica|sociales]` desde
+      `scripts/data/tareas-y-recomendaciones.xlsx` y
+      `scripts/data/rejilla-sociales.xlsm`. La de Sociales no trae Componente
+      ni Tarea en la hoja `Rejilla_Para_Plataforma`: el script los completa
+      desde las hojas "UNIDAD N" ("Código Componente", "Texto Tareas").
   - ⚠️ **La unidad se cruza por NÚMERO, no por texto**: el título del plan es
     libre ("Unidad 3. Estequiometría") y nunca coincide letra a letra con el de
     la rejilla ("UNIDAD 3"). Si el tutor no numeró el título, se cae a la
