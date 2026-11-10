@@ -2517,6 +2517,32 @@ table { min-width: 560px; }
   .av-body-wings { opacity: .8; }
 }
 
+/* Print: documentos de varias páginas (informe final y asistencia del piloto
+   clon, acta de cierre, informe de la clase en vivo).
+   ⚠️ El shell de la app mide 100vh con overflow:hidden en tres niveles (app.jsx)
+   y <main> es position:relative: el documento quedaba recortado a UNA página.
+   Al imprimir, todo lo que no es el documento ni lo contiene sale del flujo
+   (display:none, no solo visibility:hidden, para que no deje páginas en blanco)
+   y los contenedores del documento crecen con él. */
+@media print {
+  body:has(#clone-print) *:not(#clone-print):not(#clone-print *):not(:has(#clone-print)),
+  body:has(#acta-print) *:not(#acta-print):not(#acta-print *):not(:has(#acta-print)),
+  body:has(#live-report-print) *:not(#live-report-print):not(#live-report-print *):not(:has(#live-report-print)) {
+    display: none !important;
+  }
+  html:has(#clone-print), html:has(#acta-print), html:has(#live-report-print),
+  *:has(#clone-print), *:has(#acta-print), *:has(#live-report-print) {
+    display: block !important;
+    height: auto !important; min-height: 0 !important; max-height: none !important;
+    overflow: visible !important; position: static !important;
+    transform: none !important; animation: none !important;
+    padding: 0 !important; margin: 0 !important; background: #fff !important;
+  }
+  #clone-print, #acta-print, #live-report-print {
+    position: static !important; box-shadow: none !important; margin: 0 !important;
+  }
+}
+
 /* Print: certificate only */
 @media print {
   .no-print { display: none !important; }
