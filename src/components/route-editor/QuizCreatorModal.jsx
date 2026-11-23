@@ -1,8 +1,9 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { PlusIc, XIc, CheckIc, ChevRIc, Btn, ImageUploader, RichInput, RichText, useMobile } from '../ui.jsx'
+import { PlusIc, XIc, CheckIc, ChevRIc, Btn, ImageUploader, RichInput, RichText, ZoomImg, useMobile } from '../ui.jsx'
 import { BANK_AREAS, ROUND_LABELS, DIFFICULTY, loadQuestionBank, bankToModuleQuestion } from '../../lib/questionBankMeta.js'
 import QuestionBankPicker from './QuestionBankPicker.jsx'
+import { PassageToggle } from './PassageView.jsx'
 import { useStore } from '../../store/store.jsx'
 import { SABER_GUIDES, checkRound, evidenceInfo, evidenceIndex, tagWithBank } from '../../lib/saberGuide.js'
 
@@ -548,6 +549,7 @@ const QuizCreatorModal = ({ open, initial, onClose, onSave, variant = 'quiz', us
                   </div>
                 </div>
                 {isOpenQ ? (<>
+                {q.passage && <PassageToggle passage={q.passage} label="Leer el contexto" style={{ marginBottom: 10 }} />}
                 <div style={{ marginBottom: 10 }}>
                   <RichInput multiline rows={2} value={q.question} onChange={v => updateQ(q.id, 'question', v)}
                     placeholder="Escribe la pregunta aquí… (usa la barra para negrilla, color, ∑ fórmulas e 🖼️ imágenes)" />
@@ -709,6 +711,12 @@ const QuizCreatorModal = ({ open, initial, onClose, onSave, variant = 'quiz', us
                 </>) : (
                   // Resumen plegado: enunciado, opciones con la correcta marcada y pista.
                   <div onClick={() => toggleOpenQ(q.id)} style={{ cursor: 'pointer' }}>
+                    {q.passage && <PassageToggle passage={q.passage} label="Leer el contexto" style={{ marginBottom: 8 }} />}
+                    {q.image && (
+                      <div onClick={e => e.stopPropagation()} style={{ marginBottom: 6 }}>
+                        <ZoomImg src={q.image} alt="Imagen de la pregunta" style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }} />
+                      </div>
+                    )}
                     <RichText as="p" style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.45, margin: 0,
                       display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {q.question || 'Pregunta sin texto — toca ✏️ Editar'}

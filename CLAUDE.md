@@ -762,6 +762,14 @@ módulos son rondas de preguntas que la Clase en Vivo muestra **una a una**
   filtros por dificultad, búsqueda, aviso si la pregunta ya está en la otra
   ronda, "↺ Volver a las predeterminadas". Agregar **copia** la pregunta al
   módulo; editarla allí no toca el banco.
+  - **Contexto visible (nov 2026).** Las preguntas que comparten un contexto
+    (lecturas, infografías, tablas) van agrupadas en el selector bajo un
+    encabezado "📖 Contexto · N preguntas" con "Leer el contexto completo"
+    (`PassageToggle`/`PassageView` en `route-editor/PassageView.jsx`: párrafos,
+    tablas con `|`, imágenes ampliables y fuente), en todas las asignaturas, no
+    solo Lectura. Las preguntas ya en el módulo (`QuizCreatorModal`, plegadas o
+    en edición) traen el mismo botón y la imagen del enunciado. "Ver opciones"
+    muestra además la explicación. Antes solo se veía el título del texto.
 - ⚠️ **Dificultad provisional, asignada al azar** (semilla fija) mientras el
   equipo académico la define — salvo **Sociales**, cuyo documento trae la
   dificultad real (primera ronda = baja y media; ronda final = alta). Cinco preguntas se **corrigieron** respecto al Word

@@ -1,5 +1,6 @@
 import React from 'react'
-import { RichText, QuestionText } from '../ui.jsx'
+import { RichText, QuestionText, ZoomImg } from '../ui.jsx'
+import { PassageToggle } from './PassageView.jsx'
 import { BANK_AREAS, DIFFICULTY, loadQuestionBank } from '../../lib/questionBankMeta.js'
 import { SABER_GUIDES, evidenceInfo } from '../../lib/saberGuide.js'
 
@@ -17,7 +18,7 @@ const DiffChip = ({ d }) => DIFFICULTY[d]
   ? <span style={chip(DIFFICULTY[d].bg, DIFFICULTY[d].fg)}>{DIFFICULTY[d].label}</span>
   : null
 
-const BankCard = ({ q, n, passage, inModule, usedIn, onToggle }) => {
+const BankCard = ({ q, n, passage, underHeader, inModule, usedIn, onToggle }) => {
   const [open, setOpen] = React.useState(false)
   const info = evidenceInfo(q.area, q.evidencia)
   return (
@@ -40,11 +41,7 @@ const BankCard = ({ q, n, passage, inModule, usedIn, onToggle }) => {
             {usedIn && <span style={chip('var(--purple-bg)', 'var(--purple)')} title="Ya está en otro módulo de esta ruta">También en: {usedIn}</span>}
             {q.review && <span style={chip('#FEE2E2', '#B91C1C')} title={q.review}>⚠️ Revisar</span>}
           </div>
-          {passage && (
-            <div style={{ fontSize: 11.5, color: 'var(--purple)', fontWeight: 700, marginBottom: 3 }}>
-              📖 {passage.title || (passage.images?.length ? 'Texto con imagen' : 'Texto de lectura')}
-            </div>
-          )}
+          {passage && !underHeader && <PassageToggle passage={passage} style={{ marginBottom: 6 }} />}
           {open ? (
             <QuestionText as="p" style={{ fontSize: 13, color: 'var(--dark)', lineHeight: 1.45, margin: 0 }}>{q.question}</QuestionText>
           ) : (
@@ -55,14 +52,19 @@ const BankCard = ({ q, n, passage, inModule, usedIn, onToggle }) => {
           )}
           {open && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {q.image && <img src={q.image} alt="" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }} />}
+              {q.image && <ZoomImg src={q.image} alt="Imagen de la pregunta" style={{ maxWidth: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }} />}
               {q.options.map((o, i) => (
                 <div key={i} style={{ fontSize: 12.5, color: i === q.correct ? 'var(--success)' : 'var(--text-sec)', fontWeight: i === q.correct ? 700 : 500 }}>
                   {String.fromCharCode(65 + i)}) <RichText>{o}</RichText>{i === q.correct && ' ✓'}
-                  {q.optionImages?.[i] && <img src={q.optionImages[i]} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 120, objectFit: 'contain', margin: '2px 0 4px 18px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }} />}
+                  {q.optionImages?.[i] && <ZoomImg src={q.optionImages[i]} alt={`Opción ${String.fromCharCode(65 + i)}`} style={{ display: 'block', maxWidth: '100%', maxHeight: 160, objectFit: 'contain', margin: '2px 0 4px 18px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }} />}
                 </div>
               ))}
-              <div style={{ fontSize: 12, color: 'var(--orange)', marginTop: 4 }}>💡 <b>Pista:</b> {q.hint}</div>
+              {q.explanation && (
+                <div style={{ fontSize: 12, color: 'var(--text-sec)', lineHeight: 1.5, marginTop: 4, padding: '7px 9px', borderRadius: 8, background: 'var(--purple-bg)' }}>
+                  <b style={{ color: 'var(--purple)' }}>Explicación:</b> <RichText>{q.explanation}</RichText>
+                </div>
+              )}
+              {q.hint && <div style={{ fontSize: 12, color: 'var(--orange)', marginTop: 4 }}>💡 <b>Pista:</b> {q.hint}</div>}
               {info && (
                 <div style={{ fontSize: 11.5, color: 'var(--text-sec)', lineHeight: 1.45, marginTop: 2 }}>
                   <b>{info.competencia.label}.</b> <b>Afirmación {info.afirmacion.n}:</b> {info.afirmacion.text} <b>Evidencia {info.code}:</b> {info.evidencia}
@@ -75,7 +77,7 @@ const BankCard = ({ q, n, passage, inModule, usedIn, onToggle }) => {
           <button onClick={() => setOpen(o => !o)}
             style={{ marginTop: 4, padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
               fontSize: 11.5, fontWeight: 700, color: 'var(--purple)' }}>
-            {open ? 'Ver menos' : 'Ver opciones, respuesta y pista'}
+            {open ? 'Ver menos' : 'Ver opciones, respuesta, explicación y pista'}
           </button>
         </div>
       </div>
@@ -112,7 +114,8 @@ const QuestionBankPicker = ({ area, selectedIds, usedElsewhere = {}, onToggle, o
     border: active ? '1.5px solid var(--purple)' : '1.5px solid var(--border)', background: active ? 'var(--purple-bg)' : 'var(--white)',
     color: active ? 'var(--purple)' : 'var(--muted)' })
 
-  // Lectura: las preguntas se agrupan por su texto, con un encabezado por grupo.
+  // Las preguntas que comparten un contexto (lecturas, infografías, tablas) van
+  // agrupadas bajo un encabezado con el texto completo, para leerlo una vez.
   let lastPassage = null
 
   return (
@@ -160,16 +163,20 @@ const QuestionBankPicker = ({ area, selectedIds, usedElsewhere = {}, onToggle, o
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {bank && list.map(q => {
           const passage = q.passageId ? bank.passages[q.passageId] : null
-          const header = area === 'lectura' && q.passageId && q.passageId !== lastPassage && !onlyMine
-          lastPassage = q.passageId || lastPassage
+          const header = !!passage && q.passageId !== lastPassage
+          lastPassage = q.passageId || null
+          const groupSize = header ? list.filter(x => x.passageId === q.passageId).length : 0
           return (
             <React.Fragment key={q.id}>
               {header && (
-                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: .8, margin: '6px 0 0' }}>
-                  {passage?.intro?.replace(/ DE ACUERDO CON .*$/, '') || 'Texto'}{passage?.title ? ` · ${passage.title}` : ''}
+                <div style={{ margin: '8px 0 0', padding: '10px 12px', borderRadius: 12, background: 'var(--purple-bg)', borderLeft: '3px solid var(--purple)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: .8, marginBottom: 6 }}>
+                    📖 Contexto{passage.title ? ` · ${passage.title}` : ''} · {groupSize === 1 ? '1 pregunta' : `${groupSize} preguntas`}
+                  </div>
+                  <PassageToggle passage={passage} label="Leer el contexto completo" />
                 </div>
               )}
-              <BankCard q={q} n={all.indexOf(q) + 1} passage={passage} inModule={selectedIds.has(q.id)}
+              <BankCard q={q} n={all.indexOf(q) + 1} passage={passage} underHeader inModule={selectedIds.has(q.id)}
                 usedIn={usedElsewhere[q.id]} onToggle={() => onToggle(q, bank)} />
             </React.Fragment>
           )
